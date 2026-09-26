@@ -33,7 +33,6 @@ const navItems: NavItem[] = [
   { labelKey: "adminDashboard", href: "/admin", icon: LayoutDashboard },
   { labelKey: "adminProducts", href: "/admin/products", icon: Package },
   { labelKey: "adminCategories", href: "/admin/categories", icon: Layers },
-  { labelKey: "adminPortfolio", href: "/admin/portfolio", icon: Briefcase },
   { labelKey: "adminLanding", href: "/admin/landing", icon: LayoutDashboard },
   { labelKey: "adminFeatures", href: "/admin/features", icon: Store },
   { labelKey: "adminReviews", href: "/admin/reviews", icon: MessageSquare },

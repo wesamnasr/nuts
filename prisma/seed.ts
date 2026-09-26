@@ -1,319 +1,369 @@
 import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
+import fs from "fs";
+import path from "path";
 
-const connectionString = process.env.DIRECT_URL!;
-const pool = new Pool({ 
+// تحميل المتغيرات البيئية إن وجدت
+const envPath = path.resolve(process.cwd(), ".env");
+if (fs.existsSync(envPath)) {
+  const envConfig = fs.readFileSync(envPath, "utf8");
+  envConfig.split("\n").forEach((line) => {
+    const [key, ...valueParts] = line.split("=");
+    if (key && valueParts.length > 0) {
+      const value = valueParts.join("=").trim().replace(/^["']|["']$/g, "");
+      if (!process.env[key.trim()]) {
+        process.env[key.trim()] = value;
+      }
+    }
+  });
+}
+
+const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL;
+if (!connectionString) {
+  console.log("⚠️ No DATABASE_URL found. Please configure your .env file.");
+  process.exit(0);
+}
+
+const pool = new Pool({
   connectionString,
-  ssl: {
-    rejectUnauthorized: false,
-  }
+  ssl: { rejectUnauthorized: false },
 });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-// Helper to generate random string
-function randomString(length: number): string {
-  const characters =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < length; i++) {
-    result += characters.charAt(Math.floor(Math.random() * characters.length));
-  }
-  return result;
-}
+async function seed() {
+  console.log("🌱 Starting Nuts & Gourmet Food Store Seed...");
 
-// Helper to generate random number
-function randomNumber(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-// Curated Unsplash Images for Furniture
-const categoryImages: Record<string, string> = {
-  "Living Room":
-    "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80",
-  Bedroom:
-    "https://images.unsplash.com/photo-1505693416388-b0346efee539?auto=format&fit=crop&w=800&q=80",
-  "Dining Room":
-    "https://images.unsplash.com/photo-1617806118233-18e1de247200?auto=format&fit=crop&w=800&q=80",
-  Office:
-    "https://images.unsplash.com/photo-1524758631624-e2822e304c36?auto=format&fit=crop&w=800&q=80",
-  Outdoor:
-    "https://images.unsplash.com/photo-1592613653195-207d50325d97?auto=format&fit=crop&w=800&q=80",
-  Lighting:
-    "https://images.unsplash.com/photo-1513506003011-3b03c860c1fb?auto=format&fit=crop&w=800&q=80",
-  Decor:
-    "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=800&q=80",
-  Kitchen:
-    "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=800&q=80",
-  Bathroom:
-    "https://images.unsplash.com/photo-1584622050111-993a426fbf0a?auto=format&fit=crop&w=800&q=80",
-  "Kids Room":
-    "https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?auto=format&fit=crop&w=800&q=80",
-};
-
-const productImagesList = [
-  "https://images.unsplash.com/photo-1567538096630-e08558e0fcde?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1493663284031-b7e3aefcae8e?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1538688525198-9b88f6f53126?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1580480055273-228ff5388ef8?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1618220179428-22790b461013?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1550226891-ef816aed4a98?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1484101403633-562f891dc89a?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80",
-];
-
-// Arabic/English Mock Data
-const categories = [
-  { en: "Living Room", ar: "غرفة المعيشة" },
-  { en: "Bedroom", ar: "غرفة النوم" },
-  { en: "Dining Room", ar: "غرفة الطعام" },
-  { en: "Office", ar: "المكتب" },
-  { en: "Outdoor", ar: "خارج المنزل" },
-  { en: "Lighting", ar: "الإضاءة" },
-  { en: "Decor", ar: "الديكور" },
-  { en: "Kitchen", ar: "المطبخ" },
-  { en: "Bathroom", ar: "الحمام" },
-  { en: "Kids Room", ar: "غرفة الأطفال" },
-];
-
-const adjectivesEn = [
-  "Modern",
-  "Classic",
-  "Premium",
-  "Luxury",
-  "Minimalist",
-  "Cozy",
-  "Elegant",
-  "Rustic",
-  "Vintage",
-  "Sleek",
-];
-const adjectivesAr = [
-  "عصري",
-  "كلاسيكي",
-  "فاخر",
-  "فخم",
-  "بسيط",
-  "مريح",
-  "أنيق",
-  "ريفي",
-  "قديم",
-  "أملس",
-];
-
-const nounsEn = [
-  "Sofa",
-  "Chair",
-  "Table",
-  "Lamp",
-  "Bed",
-  "Desk",
-  "Shelf",
-  "Rug",
-  "Mirror",
-  "Cabinet",
-];
-const nounsAr = [
-  "أريكة",
-  "كرسي",
-  "طاولة",
-  "مصباح",
-  "سرير",
-  "مكتب",
-  "رف",
-  "سجادة",
-  "مرآة",
-  "خزانة",
-];
-
-const reviewsEn = [
-  "Great product!",
-  "Really loved it.",
-  "Good quality.",
-  "Fast delivery.",
-  "Highly recommended.",
-  "Nice design.",
-  "Comfortable.",
-  "Worth the price.",
-  "Amazing.",
-  "Perfect for my home.",
-];
-const reviewsAr = [
-  "منتج رائع!",
-  "أحببته حقًا.",
-  "جودة جيدة.",
-  "توصيل سريع.",
-  "موصى به بشدة.",
-  "تصميم جميل.",
-  "مريح.",
-  "يستحق السعر.",
-  "مدهش.",
-  "مثالي لمنزلي.",
-];
-
-const names = [
-  "Ahmed",
-  "Sara",
-  "Mohamed",
-  "Fatima",
-  "Ali",
-  "Noura",
-  "Omar",
-  "Layla",
-  "Khalid",
-  "Amal",
-];
-
-async function main() {
-  console.log("Start seeding ...");
-
-  // CLEANUP FIRST
-  console.log("Cleaning existing data...");
   try {
-    if (prisma.review) await prisma.review.deleteMany();
-    await prisma.productImage.deleteMany();
-    await prisma.productVariant.deleteMany();
-    await prisma.product.deleteMany();
-    await prisma.category.deleteMany();
-  } catch (e) {
-    console.log("Cleanup error (might be first run):", e);
-  }
-
-  const createdCategories = [];
-
-  // 1. Create 10 Categories
-  console.log("Seeding Categories...");
-  for (let i = 0; i < 10; i++) {
-    const catData = categories[i] || { en: `Category ${i}`, ar: `تصنيف ${i}` };
-    const category = await prisma.category.create({
-      data: {
-        nameEn: catData.en,
-        nameAr: catData.ar,
-        slug: `${catData.en.toLowerCase().replace(/ /g, "-")}-${randomString(5)}`,
-        sortOrder: i + 1,
-        isActive: true,
-        image:
-          categoryImages[catData.en] ||
-          "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=800&q=80",
+    // 1. إضافة مناطق الشحن لمحافظات مصر
+    console.log("📦 Seeding Egyptian Shipping Zones...");
+    const shippingZones = [
+      {
+        governorateAr: "القاهرة والجيزة",
+        governorateEn: "Cairo & Giza",
+        shippingFee: 50.0,
+        estimatedDaysAr: "خلال 24 ساعة",
+        estimatedDaysEn: "Within 24 Hours",
       },
-    });
-    createdCategories.push(category);
-    console.log(`Created category: ${category.nameEn}`);
-  }
+      {
+        governorateAr: "الإسكندرية والبحيرة",
+        governorateEn: "Alexandria & Beheira",
+        shippingFee: 65.0,
+        estimatedDaysAr: "1 - 2 يوم عمل",
+        estimatedDaysEn: "1 - 2 Business Days",
+      },
+      {
+        governorateAr: "محافظات الدلتا والقناة",
+        governorateEn: "Delta & Canal Cities",
+        shippingFee: 70.0,
+        estimatedDaysAr: "2 - 3 أيام عمل",
+        estimatedDaysEn: "2 - 3 Business Days",
+      },
+      {
+        governorateAr: "محافظات شمال ووسط الصعيد",
+        governorateEn: "Upper Egypt (North & Central)",
+        shippingFee: 85.0,
+        estimatedDaysAr: "2 - 4 أيام عمل",
+        estimatedDaysEn: "2 - 4 Business Days",
+      },
+      {
+        governorateAr: "محافظات جنوب الصعيد والبحر الأحمر والحدودية",
+        governorateEn: "South Upper Egypt & Frontier",
+        shippingFee: 110.0,
+        estimatedDaysAr: "3 - 5 أيام عمل",
+        estimatedDaysEn: "3 - 5 Business Days",
+      },
+    ];
 
-  // 2. Create products for each category
-  console.log("Seeding Products...");
-  const createdProductsPromise = [];
+    for (const zone of shippingZones) {
+      await prisma.shippingZone.create({ data: zone });
+    }
 
-  for (const category of createdCategories) {
-    for (let i = 0; i < 2; i++) {
-      const idx = randomNumber(0, 9);
-      const nameEn = `${adjectivesEn[idx]} ${nounsEn[idx]} ${randomString(3)}`;
-      const nameAr = `${nounsAr[idx]} ${adjectivesAr[idx]} ${randomString(3)}`;
+    // 2. تصنيفات المكسرات والأغذية
+    console.log("🥜 Seeding Categories...");
+    const categoriesData = [
+      {
+        nameAr: "مكسرات محمصة",
+        nameEn: "Roasted Nuts",
+        slug: "roasted-nuts",
+        descriptionAr: "مكسرات طازجة محمصة يومياً بأعلى درجات العناية ونكهات فريدة مقرمشة",
+        descriptionEn: "Daily freshly roasted nuts with premium crispiness and unique flavors",
+        image: "https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=800&q=80",
+        sortOrder: 1,
+      },
+      {
+        nameAr: "مكسرات نيئة وصحية",
+        nameEn: "Raw & Healthy Nuts",
+        slug: "raw-nuts",
+        descriptionAr: "مكسرات طبيعية غير محمصة 100% غنية بالزيوت الصحية ومناسبة للكيتو",
+        descriptionEn: "100% Natural raw unroasted nuts rich in healthy fats, keto-friendly",
+        image: "https://images.unsplash.com/photo-1536591375661-bc9514e861d8?auto=format&fit=crop&w=800&q=80",
+        sortOrder: 2,
+      },
+      {
+        nameAr: "فواكه مجففة وياميش",
+        nameEn: "Dried Fruits",
+        slug: "dried-fruits",
+        descriptionAr: "أجود أنواع التين والمشمش والقراصيا والزبيب الفاخر بدون سكر مضاف",
+        descriptionEn: "Finest quality dried figs, apricots, prunes, and raisins with no added sugar",
+        image: "https://images.unsplash.com/photo-1608755728617-aefab37d45f6?auto=format&fit=crop&w=800&q=80",
+        sortOrder: 3,
+      },
+      {
+        nameAr: "بوكسات مشكلة وهدايا",
+        nameEn: "Gift Boxes & Mixes",
+        slug: "gift-boxes",
+        descriptionAr: "تشكيلات فاخرة منتقاة بعناية لجميع المناسبات في عبوات أنيقة",
+        descriptionEn: "Carefully curated premium assortments in elegant gift packaging",
+        image: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=800&q=80",
+        sortOrder: 4,
+      },
+    ];
 
-      const price = randomNumber(100, 5000);
+    const createdCategories: Record<string, string> = {};
+    for (const cat of categoriesData) {
+      const created = await prisma.category.create({ data: cat });
+      createdCategories[cat.slug] = created.id;
+    }
 
-      const mainImage =
-        productImagesList[randomNumber(0, productImagesList.length - 1)];
-      const secondaryImage =
-        productImagesList[randomNumber(0, productImagesList.length - 1)];
-
-      createdProductsPromise.push(
-        prisma.product.create({
-          data: {
-            categoryId: category.id,
-            nameEn: nameEn,
-            nameAr: nameAr,
-            descEn:
-              "This is a high quality furniture piece that fits perfectly in your modern home. Made with premium materials.",
-            descAr:
-              "هذه قطعة أثاث عالية الجودة تناسب منزلك العصري تمامًا. مصنوعة من مواد ممتازة.",
-            slug: `${nameEn.toLowerCase().replace(/ /g, "-")}-${randomString(5)}`,
-            isVisible: true,
-            isFeatured: Math.random() > 0.8,
-            materialEn: "Wood & Fabric",
-            materialAr: "خشب وقماش",
-            madeInEn: "Turkey",
-            madeInAr: "تركيا",
-            warrantyEn: "2 Years",
-            warrantyAr: "سنتين",
-            images: {
-              create: [
-                {
-                  url: mainImage,
-                  sortOrder: 1,
-                  isMain: true,
-                },
-                {
-                  url: secondaryImage,
-                  sortOrder: 2,
-                  isMain: false,
-                },
-              ],
-            },
-            variants: {
-              create: {
-                price: price,
-                stock: randomNumber(5, 50),
-                sku: `SKU-${randomString(6).toUpperCase()}`,
-                isDefault: true,
-                sizeNameEn: "Standard",
-                sizeNameAr: "قياسي",
-                colorEn: "Beige",
-                colorAr: "بيج",
-              },
-            },
+    // 3. منتجات نموذجية وأوزانها
+    console.log("🌰 Seeding Sample Products & Variants...");
+    const products = [
+      {
+        categoryId: createdCategories["roasted-nuts"],
+        nameAr: "كاجو محمص جامبو فاخر",
+        nameEn: "Premium Jumbo Roasted Cashews",
+        slug: "premium-jumbo-cashews",
+        descAr: "حبات كاجو جامبو منتقاة بعناية، محمصة ومملحة خفيف للحفاظ على الطعم الأصلي والمقرمش",
+        descEn: "Carefully selected jumbo cashews, lightly roasted and salted for perfect crunch",
+        originCountryAr: "فيتنامي",
+        originCountryEn: "Vietnam",
+        roastTypeAr: "محمص ومملح خفيف",
+        roastTypeEn: "Lightly Salted",
+        caloriesPer100g: 553,
+        proteinPer100g: 18.2,
+        isKeto: true,
+        isFeatured: true,
+        isBestSeller: true,
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=800&q=80",
+            isMain: true,
           },
-        }),
-      );
-    }
-  }
+        ],
+        variants: [
+          {
+            weightGram: 250,
+            flavorAr: "مملح خفيف",
+            packageTypeAr: "كيس محكم الغلق (Zipper)",
+            price: 180.0,
+            stockQuantity: 40,
+            isDefault: true,
+          },
+          {
+            weightGram: 500,
+            flavorAr: "مملح خفيف",
+            packageTypeAr: "كيس محكم الغلق (Zipper)",
+            price: 340.0,
+            discountPrice: 320.0,
+            stockQuantity: 25,
+            isDefault: false,
+          },
+          {
+            weightGram: 1000,
+            flavorAr: "مملح خفيف",
+            packageTypeAr: "برطمان فاخر محكم الغلق",
+            price: 660.0,
+            discountPrice: 620.0,
+            stockQuantity: 15,
+            isDefault: false,
+          },
+        ],
+      },
+      {
+        categoryId: createdCategories["roasted-nuts"],
+        nameAr: "فستق أمريكي محمص ومملح",
+        nameEn: "Roasted & Salted American Pistachios",
+        slug: "roasted-american-pistachios",
+        descAr: "فستق أمريكي درجة أولى مفتوح طبيعياً، محمص بالملح البحري الخفيف",
+        descEn: "Grade-A naturally opened California pistachios roasted with light sea salt",
+        originCountryAr: "أمريكا (كاليفورنيا)",
+        originCountryEn: "USA (California)",
+        roastTypeAr: "محمص بالملح البحري",
+        roastTypeEn: "Sea Salt Roasted",
+        caloriesPer100g: 562,
+        proteinPer100g: 20.0,
+        isKeto: true,
+        isFeatured: true,
+        isBestSeller: true,
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1528751014936-863e6e7a319c?auto=format&fit=crop&w=800&q=80",
+            isMain: true,
+          },
+        ],
+        variants: [
+          {
+            weightGram: 250,
+            flavorAr: "ملح بحري",
+            packageTypeAr: "كيس محكم الغلق (Zipper)",
+            price: 210.0,
+            stockQuantity: 30,
+            isDefault: true,
+          },
+          {
+            weightGram: 500,
+            flavorAr: "ملح بحري",
+            packageTypeAr: "كيس محكم الغلق (Zipper)",
+            price: 400.0,
+            discountPrice: 380.0,
+            stockQuantity: 20,
+            isDefault: false,
+          },
+        ],
+      },
+      {
+        categoryId: createdCategories["raw-nuts"],
+        nameAr: "عين جمل تشيلي نيء (أنصاف إكسترا)",
+        nameEn: "Raw Chilean Walnut Halves",
+        slug: "raw-chilean-walnuts",
+        descAr: "عين جمل تشيلي فاتح اللون طازج وغني بأوميجا 3، غير محمص ومناسب تماماً للحميات والكيتو",
+        descEn: "Fresh extra light Chilean walnuts, rich in Omega-3, raw and keto-friendly",
+        originCountryAr: "تشيلي",
+        originCountryEn: "Chile",
+        roastTypeAr: "نيء (طبيعي 100%)",
+        roastTypeEn: "Raw",
+        caloriesPer100g: 654,
+        proteinPer100g: 15.2,
+        isKeto: true,
+        isRaw: true,
+        isFeatured: true,
+        images: [
+          {
+            url: "https://images.unsplash.com/photo-1536591375661-bc9514e861d8?auto=format&fit=crop&w=800&q=80",
+            isMain: true,
+          },
+        ],
+        variants: [
+          {
+            weightGram: 250,
+            flavorAr: "طبيعي خام",
+            packageTypeAr: "كيس مفرغ من الهواء (Vacuum)",
+            price: 150.0,
+            stockQuantity: 50,
+            isDefault: true,
+          },
+          {
+            weightGram: 500,
+            flavorAr: "طبيعي خام",
+            packageTypeAr: "كيس مفرغ من الهواء (Vacuum)",
+            price: 285.0,
+            stockQuantity: 35,
+            isDefault: false,
+          },
+        ],
+      },
+    ];
 
-  const createdProducts = await Promise.all(createdProductsPromise);
-  createdProducts.forEach((p) => console.log(`Created product: ${p.nameEn}`));
-
-  // 3. Create 10 Reviews
-  console.log("Seeding Reviews...");
-  // @ts-ignore
-  if (prisma.review) {
-    for (let i = 0; i < 10; i++) {
-      if (createdProducts.length === 0) break;
-      const product =
-        createdProducts[randomNumber(0, createdProducts.length - 1)];
-      const reviewIdx = randomNumber(0, 9);
-      const nameIdx = randomNumber(0, 9);
-
-      await prisma.review.create({
-        data: {
-          productId: product.id,
-          customerName: names[nameIdx],
-          rating: randomNumber(3, 5),
-          comment: reviewsEn[reviewIdx],
-          commentAr: reviewsAr[reviewIdx],
-          commentEn: reviewsEn[reviewIdx],
-          isApproved: true,
-          isFeatured: Math.random() > 0.7,
-          customerImage: `https://i.pravatar.cc/150?u=${randomString(5)}`,
-        },
+    for (const prod of products) {
+      const { variants, images, ...prodData } = prod;
+      const createdProd = await prisma.product.create({
+        data: prodData,
       });
-      console.log(`Created review for ${product.nameEn}`);
-    }
-  } else {
-    console.log("Skipping reviews seeding - Model Review not found");
-  }
 
-  console.log("Seeding finished.");
+      for (const img of images) {
+        await prisma.productImage.create({
+          data: {
+            productId: createdProd.id,
+            url: img.url,
+            isMain: img.isMain,
+          },
+        });
+      }
+
+      for (const v of variants) {
+        await prisma.productVariant.create({
+          data: {
+            productId: createdProd.id,
+            ...v,
+          },
+        });
+      }
+    }
+
+    // 4. مميزات المتجر
+    console.log("✨ Seeding Store Features...");
+    const features = [
+      {
+        titleAr: "تحميص طازج يومياً",
+        titleEn: "Daily Fresh Roasted",
+        descAr: "نحمص مكسراتنا يومياً بأفران هوائية حديثة لضمان أقصى قرمشة وطعم أصيل",
+        descEn: "Roasted daily using modern air roasters for maximum crunch and natural flavor",
+        icon: "Flame",
+        sortOrder: 1,
+      },
+      {
+        titleAr: "تغليف محكم مفرغ من الهواء",
+        titleEn: "Vacuum Sealed Packaging",
+        descAr: "عبوات مفرغة لحفظ الزيوت الطبيعية والمذاق الطازج حتى وصولها لباب منزلك",
+        descEn: "Sealed packaging protecting natural oils and fresh taste to your doorstep",
+        icon: "ShieldCheck",
+        sortOrder: 2,
+      },
+      {
+        titleAr: "دفع مصري متعدد وآمن",
+        titleEn: "All Egyptian Payments",
+        descAr: "فودافون كاش، إنستاباي، ميزة، فيزا، فوري، والدفع عند الاستلام",
+        descEn: "Vodafone Cash, InstaPay, Meeza cards, Fawry, and Cash on Delivery",
+        icon: "CreditCard",
+        sortOrder: 3,
+      },
+      {
+        titleAr: "شحن سريع لجميع المحافظات",
+        titleEn: "Fast Egypt-wide Delivery",
+        descAr: "توصيل خلال 24 ساعة للقاهرة والجيزة، وتغطية كاملة لجميع محافظات مصر",
+        descEn: "24-hour delivery in Cairo & Giza with complete coverage across Egypt",
+        icon: "Truck",
+        sortOrder: 4,
+      },
+    ];
+
+    for (const feat of features) {
+      await prisma.storeFeature.create({ data: feat });
+    }
+
+    // 5. إعدادات المتجر المصرية
+    console.log("⚙️ Seeding Store Settings...");
+    const settings = [
+      { key: "storeNameAr", value: "محامص ومكسرات نَتس" },
+      { key: "storeNameEn", value: "Nuts Gourmet Roastery" },
+      { key: "currencyAr", value: "ج.م" },
+      { key: "currencyEn", value: "EGP" },
+      { key: "customerSupportNumber", value: "01000000000" },
+      { key: "whatsappNumber", value: "201000000000" },
+      { key: "instapayAddress", value: "nuts.roastery@instapay" },
+      { key: "vodafoneCashNumber", value: "01000000000" },
+      { key: "storeAddressAr", value: "القاهرة، جمهورية مصر العربية" },
+      { key: "storeAddressEn", value: "Cairo, Egypt" },
+      { key: "metaTitle", value: "محامص نَتس | أجود أنواع المكسرات والفواكه المجففة" },
+      { key: "metaDescription", value: "تسوق أجود أنواع المكسرات المحمصة والنيئة والفواكه المجففة في مصر مع توصيل سريع لجميع المحافظات والدفع بفودافون كاش وإنستاباي" },
+    ];
+
+    for (const s of settings) {
+      await prisma.setting.upsert({
+        where: { key: s.key },
+        update: { value: s.value },
+        create: s,
+      });
+    }
+
+    console.log("✅ Seed completed successfully!");
+  } catch (error) {
+    console.error("❌ Seed failed:", error);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (e) => {
-    console.error(e);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+seed();

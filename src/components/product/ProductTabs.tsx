@@ -1,23 +1,38 @@
 import { useLocale } from "@/i18n/LocaleContext";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Package, Ruler, Truck } from "lucide-react";
+import { Flame, ShieldCheck, Truck, Sparkles, Scale, Heart } from "lucide-react";
 
-type ProductData = {
-  materialAr: string | null;
-  materialEn: string | null;
-  madeInAr: string | null;
-  madeInEn: string | null;
-  warrantyAr: string | null;
-  warrantyEn: string | null;
-  deliveryInstallationAr: string | null;
-  deliveryInstallationEn: string | null;
+export type ProductData = {
+  originCountryAr?: string | null;
+  originCountryEn?: string | null;
+  roastTypeAr?: string | null;
+  roastTypeEn?: string | null;
+  caloriesPer100g?: number | null;
+  proteinPer100g?: any;
+  isKeto?: boolean;
+  isRaw?: boolean;
+  isOrganic?: boolean;
+  // Fallbacks
+  materialAr?: string | null;
+  materialEn?: string | null;
+  madeInAr?: string | null;
+  madeInEn?: string | null;
+  warrantyAr?: string | null;
+  warrantyEn?: string | null;
+  deliveryInstallationAr?: string | null;
+  deliveryInstallationEn?: string | null;
 };
 
 type ActiveVariant = {
-  detailedSizeAr: string | null;
-  detailedSizeEn: string | null;
-  sizeNameAr: string | null;
-  sizeNameEn: string | null;
+  weightGram?: number;
+  packageTypeAr?: string | null;
+  packageTypeEn?: string | null;
+  flavorAr?: string | null;
+  flavorEn?: string | null;
+  detailedSizeAr?: string | null;
+  detailedSizeEn?: string | null;
+  sizeNameAr?: string | null;
+  sizeNameEn?: string | null;
 };
 
 export type Policy = {
@@ -29,155 +44,135 @@ export type Policy = {
 type Props = {
   product: ProductData;
   activeVariant: ActiveVariant;
-  policies: Policy[];
+  policies?: Policy[];
 };
 
-export function ProductTabs({ product, activeVariant, policies }: Props) {
+export function ProductTabs({ product, activeVariant }: Props) {
   const { locale } = useLocale();
   const isAr = locale === "ar";
 
   const specs = [
     {
-      label: isAr ? "الخامة" : "Material",
-      value: isAr ? product.materialAr : product.materialEn,
+      label: isAr ? "نوع التحميص" : "Roast Type",
+      value: isAr ? product.roastTypeAr || "محمص طازج" : product.roastTypeEn || "Fresh Roasted",
     },
     {
-      label: isAr ? "صناعة" : "Made In",
-      value: isAr ? product.madeInAr : product.madeInEn,
+      label: isAr ? "بلد المنشأ" : "Origin Country",
+      value: isAr ? product.originCountryAr || "فاخر منتقى" : product.originCountryEn || "Imported",
     },
     {
-      label: isAr ? "الضمان" : "Warranty",
-      value: isAr ? product.warrantyAr : product.warrantyEn,
+      label: isAr ? "السعرات (لكل 100 جم)" : "Calories (per 100g)",
+      value: product.caloriesPer100g ? `${product.caloriesPer100g} ${isAr ? "سعرة" : "kcal"}` : null,
+    },
+    {
+      label: isAr ? "نسبة البروتين" : "Protein",
+      value: product.proteinPer100g ? `${Number(product.proteinPer100g)} ${isAr ? "جم لكل 100 جم" : "g / 100g"}` : null,
+    },
+    {
+      label: isAr ? "مناسب للكيتو" : "Keto-friendly",
+      value: product.isKeto ? (isAr ? "نعم ✓" : "Yes ✓") : null,
     },
   ].filter((s) => s.value);
 
-  const sizeInfo =
-    (isAr ? activeVariant.detailedSizeAr : activeVariant.detailedSizeEn) ||
-    (isAr ? activeVariant.sizeNameAr : activeVariant.sizeNameEn);
-
-  const productDeliveryInfo = isAr ? product.deliveryInstallationAr : product.deliveryInstallationEn;
-  const shippingPolicy = policies.find((p) => p.type === "SHIPPING");
-  const installPolicy = policies.find((p) => p.type === "INSTALLATION");
+  const weightInfo = activeVariant.weightGram
+    ? (activeVariant.weightGram >= 1000
+        ? `${activeVariant.weightGram / 1000} ${isAr ? "كجم" : "kg"}`
+        : `${activeVariant.weightGram} ${isAr ? "جم" : "g"}`)
+    : (isAr ? activeVariant.sizeNameAr : activeVariant.sizeNameEn);
 
   return (
-    <div className="w-full bg-white rounded-2xl sm:rounded-3xl border border-neutral-100 shadow-sm overflow-hidden">
-      <Tabs defaultValue="specs" className="w-full">
-        <TabsList className="w-full flex bg-neutral-50/50 p-0 h-auto border-b border-neutral-100 overflow-x-auto scrollbar-hide">
-          <TabsTrigger 
-            value="specs" 
-            className="flex-1 py-4 sm:py-6 px-4 text-sm sm:text-base font-black text-neutral-500 data-[state=active]:text-[#e30613] data-[state=active]:bg-white data-[state=active]:shadow-none transition-all border-b-2 border-transparent data-[state=active]:border-[#e30613] rounded-none hover:text-neutral-700"
+    <div className="w-full">
+      <Tabs defaultValue="nutrition" className="w-full">
+        <TabsList className="w-full justify-start border-b border-neutral-200 rounded-none bg-transparent p-0 h-auto gap-8">
+          <TabsTrigger
+            value="nutrition"
+            className="data-[state=active]:border-amber-600 data-[state=active]:text-amber-800 border-b-2 border-transparent rounded-none px-2 py-4 font-bold text-sm bg-transparent shadow-none"
           >
-            {isAr ? "تفاصيل المنتج" : "Product Details"}
+            <div className="flex items-center gap-2">
+              <Sparkles size={16} />
+              <span>{isAr ? "القيمة الغذائية والمواصفات" : "Nutrition & Specs"}</span>
+            </div>
           </TabsTrigger>
-          <TabsTrigger 
-            value="sizes" 
-            className="flex-1 py-4 sm:py-6 px-4 text-sm sm:text-base font-black text-neutral-500 data-[state=active]:text-[#e30613] data-[state=active]:bg-white data-[state=active]:shadow-none transition-all border-b-2 border-transparent data-[state=active]:border-[#e30613] rounded-none hover:text-neutral-700 font-bold"
+
+          <TabsTrigger
+            value="packaging"
+            className="data-[state=active]:border-amber-600 data-[state=active]:text-amber-800 border-b-2 border-transparent rounded-none px-2 py-4 font-bold text-sm bg-transparent shadow-none"
           >
-            {isAr ? "الأبعاد والمقاسات" : "Dimensions"}
+            <div className="flex items-center gap-2">
+              <Scale size={16} />
+              <span>{isAr ? "الوزن والتعبئة" : "Packaging & Freshness"}</span>
+            </div>
           </TabsTrigger>
-          <TabsTrigger 
-            value="shipping" 
-            className="flex-1 py-4 sm:py-6 px-4 text-sm sm:text-base font-black text-neutral-500 data-[state=active]:text-[#e30613] data-[state=active]:bg-white data-[state=active]:shadow-none transition-all border-b-2 border-transparent data-[state=active]:border-[#e30613] rounded-none hover:text-neutral-700"
+
+          <TabsTrigger
+            value="delivery"
+            className="data-[state=active]:border-amber-600 data-[state=active]:text-amber-800 border-b-2 border-transparent rounded-none px-2 py-4 font-bold text-sm bg-transparent shadow-none"
           >
-            {isAr ? "الشحن والتركيب" : "Shipping & Installation"}
+            <div className="flex items-center gap-2">
+              <Truck size={16} />
+              <span>{isAr ? "الشحن والدفع في مصر" : "Egypt Delivery & Payments"}</span>
+            </div>
           </TabsTrigger>
         </TabsList>
 
-        <div className="p-6 sm:p-10">
-          <TabsContent value="specs" className="mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            {specs.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-                {specs.map((spec) => (
-                  <div
-                    key={spec.label}
-                    className="flex flex-col gap-1 pb-4 border-b border-neutral-50 last:border-0 md:even:border-r md:even:border-b-0 md:even:pr-8 md:even:pl-0 md:odd:border-b-0 md:odd:pb-0"
-                  >
-                    <span className="text-[#e30613] text-[10px] sm:text-xs font-black uppercase tracking-wider">{spec.label}</span>
-                    <span className="font-bold text-neutral-900 text-base sm:text-xl leading-relaxed">{spec.value}</span>
-                  </div>
-                ))}
+        {/* Tab 1: Specs & Nutrition */}
+        <TabsContent value="nutrition" className="pt-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {specs.map((item, idx) => (
+              <div key={idx} className="p-4 rounded-xl bg-neutral-50 border border-neutral-100 flex flex-col">
+                <span className="text-xs text-neutral-400 font-bold mb-1">{item.label}</span>
+                <span className="text-sm font-bold text-neutral-800">{item.value}</span>
               </div>
-            ) : (
-              <div className="text-center py-12 text-neutral-400">
-                <p className="text-sm font-medium">
+            ))}
+          </div>
+        </TabsContent>
+
+        {/* Tab 2: Packaging */}
+        <TabsContent value="packaging" className="pt-6">
+          <div className="space-y-4 max-w-2xl text-sm text-neutral-600 leading-relaxed">
+            <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-100 flex items-start gap-3">
+              <ShieldCheck className="text-amber-600 shrink-0 mt-0.5" size={20} />
+              <div>
+                <h5 className="font-bold text-neutral-900 mb-1">
+                  {isAr ? "تغليف محكم يحفظ النكهة والقرمشة" : "Airtight Freshness Protection"}
+                </h5>
+                <p className="text-xs text-neutral-600">
                   {isAr
-                    ? "لا توجد مواصفات فنية إضافية لهذا المنتج"
-                    : "No additional technical specifications recorded"}
+                    ? "تُعبأ جميع مكسراتنا في أكياس مفرغة من الهواء محكمة الإغلاق لحمايتها من الرطوبة والحفاظ على طعمها المقرمش الطازج حتى آخر حبة."
+                    : "Packed in airtight, vacuum-sealed pouches to maintain natural crunchiness and preserve healthy oils to your doorstep."}
                 </p>
               </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="sizes" className="mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            {sizeInfo ? (
-              <div className="max-w-3xl">
-                 <div className="flex flex-col gap-2">
-                    <span className="text-[#e30613] text-[10px] sm:text-xs font-black uppercase tracking-wider">{isAr ? "الأبعاد التفصيلية" : "Detailed Dimensions"}</span>
-                    <div className="bg-neutral-50 border border-neutral-100 p-8 sm:p-12 rounded-2xl text-center">
-                      <p className="text-2xl sm:text-4xl font-black text-neutral-900 leading-tight">{sizeInfo}</p>
-                      <p className="text-[10px] text-neutral-400 mt-4 uppercase tracking-widest font-bold">
-                         {isAr ? "المقاس الفعلي للمنتج" : "Actual Product Dimensions"}
-                      </p>
-                    </div>
-                  </div>
-              </div>
-            ) : (
-              <div className="text-center py-12 text-neutral-400">
-                <p className="text-sm font-medium">
-                  {isAr
-                    ? "يرجى اختيار البديل (المقاس) من الخيارات المتاحة لرؤية الأبعاد"
-                    : "Please select a variant dimensions to see details"}
-                </p>
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="shipping" className="mt-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="space-y-10">
-              {/* Product Specific Delivery Info */}
-              {productDeliveryInfo && (
-                <div className="flex flex-col gap-2 pb-6 border-b border-neutral-100">
-                  <span className="text-[#e30613] text-[10px] sm:text-xs font-black uppercase tracking-wider">{isAr ? "التوصيل والتركيب" : "Shipping & Installation"}</span>
-                  <p className="text-neutral-900 text-base sm:text-xl font-bold leading-relaxed whitespace-pre-wrap">
-                    {productDeliveryInfo}
-                  </p>
-                </div>
-              )}
-
-              {/* General Policies */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 sm:gap-12">
-                {shippingPolicy && (
-                  <div className="space-y-2">
-                     <span className="text-[#e30613] text-[10px] sm:text-xs font-black uppercase tracking-wider">{isAr ? "سياسة الشحن" : "Shipping Policy"}</span>
-                      <p className="text-neutral-600 text-sm sm:text-base leading-relaxed font-bold">
-                        {isAr ? shippingPolicy.contentAr : shippingPolicy.contentEn}
-                      </p>
-                  </div>
-                )}
-                
-                {installPolicy && (
-                  <div className="space-y-2">
-                     <span className="text-[#e30613] text-[10px] sm:text-xs font-black uppercase tracking-wider">{isAr ? "خدمة التركيب" : "Installation"}</span>
-                      <p className="text-neutral-600 text-sm sm:text-base leading-relaxed font-bold">
-                        {isAr ? installPolicy.contentAr : installPolicy.contentEn}
-                      </p>
-                  </div>
-                )}
-              </div>
-
-              {!productDeliveryInfo && !shippingPolicy && !installPolicy && (
-                <div className="text-center py-12 text-neutral-400">
-                  <Truck className="w-10 h-10 mx-auto mb-3 opacity-30 text-[#e30613]" />
-                  <p className="text-sm font-bold">
-                    {isAr
-                      ? "تواصل معنا مباشرة عبر واتساب لمعرفة تفاصيل الشحن والتركيب"
-                      : "Please contact our support via WhatsApp for shipping rates and details"}
-                  </p>
-                </div>
-              )}
             </div>
-          </TabsContent>
-        </div>
+            {weightInfo && (
+              <p>
+                <strong>{isAr ? "الوزن الحالي المحدد: " : "Selected Weight: "}</strong>
+                {weightInfo}
+              </p>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Tab 3: Delivery in Egypt */}
+        <TabsContent value="delivery" className="pt-6">
+          <div className="space-y-4 max-w-2xl text-sm text-neutral-600 leading-relaxed">
+            <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-100 space-y-2">
+              <h5 className="font-bold text-neutral-900">{isAr ? "مواعيد الشحن والتوصيل" : "Delivery Schedule"}</h5>
+              <ul className="list-disc list-inside space-y-1 text-xs text-neutral-600">
+                <li>{isAr ? "القاهرة والجيزة: توصيل سريع خلال 24 ساعة (50 ج.م)" : "Cairo & Giza: Delivery within 24 Hours (50 EGP)"}</li>
+                <li>{isAr ? "الإسكندرية والبحيرة: 1 - 2 يوم عمل (65 ج.م)" : "Alexandria: 1-2 Business Days (65 EGP)"}</li>
+                <li>{isAr ? "جميع محافظات الدلتا والقناة والصعيد: 2 - 4 أيام عمل" : "Other Egyptian Governorates: 2-4 Business Days"}</li>
+              </ul>
+            </div>
+            <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-100 space-y-2">
+              <h5 className="font-bold text-neutral-900">{isAr ? "طرق الدفع المعتمدة" : "Accepted Payment Methods"}</h5>
+              <p className="text-xs text-neutral-600">
+                {isAr
+                  ? "نوفر الدفع بجميع المحافظ الإلكترونية (فودافون كاش، اتصالات، أورنج، وي باي)، التحويل الفوري عبر إنستاباي (InstaPay)، بطاقات ميزة والفيزا والماستركارد، بالإضافة إلى الدفع عند الاستلام."
+                  : "We accept all Mobile Wallets (Vodafone Cash, Etisalat, Orange, WE), InstaPay transfer, Meeza & Visa/MasterCard cards, and Cash on Delivery (COD)."}
+              </p>
+            </div>
+          </div>
+        </TabsContent>
       </Tabs>
     </div>
   );

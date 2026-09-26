@@ -69,17 +69,17 @@ export function CategoryGrid({ categories }: { categories: Category[] }) {
             transition={{ duration: 0.8 }}
             className="space-y-3 sm:space-y-4 max-w-2xl"
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full text-primary text-[9px] sm:text-[10px] font-bold uppercase tracking-widest">
-              <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-              {isAr ? "اكتشف مجموعاتنا" : "DISCOVER OUR COLLECTIONS"}
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/10 rounded-full text-amber-700 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest font-cairo">
+              <div className="w-1.5 h-1.5 bg-amber-600 rounded-full" />
+              {isAr ? "تشكيلات المحمصة الطازجة" : "FRESH ROASTERY COLLECTIONS"}
             </div>
-            <h2 className="text-xl sm:text-4xl lg:text-5xl font-black text-neutral-900 leading-tight">
+            <h2 className="text-xl sm:text-4xl lg:text-5xl font-black text-neutral-900 leading-tight font-cairo">
               {isAr ? "تسوق حسب الفئة" : "Shop by Category"}
             </h2>
-            <p className="text-neutral-500 text-[13px] sm:text-lg font-medium leading-relaxed">
+            <p className="text-neutral-500 text-[13px] sm:text-lg font-medium leading-relaxed font-cairo">
               {isAr
-                ? "استكشف مجموعاتنا المختارة بعناية لتناسب ذوقك الرفيع وتضفي لمسة من الفخامة."
-                : "Explore our carefully curated collections to suit your refined taste and luxury."}
+                ? "استكشف تشكيلاتنا الطازجة من المكسرات المحمصة والنيئة، الفواكه المجففة، وبوكسات الضيافة الفاخرة."
+                : "Explore our fresh roastery selections of roasted nuts, raw seeds, dried fruits, and luxury gift boxes."}
             </p>
           </motion.div>
 

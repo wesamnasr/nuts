@@ -15,7 +15,7 @@ export function Hero({ config }: { config?: LandingPageConfig }) {
   const subtitle = isAr ? (config?.heroSubtitleAr || t("heroSubtitle")) : (config?.heroSubtitleEn || t("heroSubtitle"));
   const btnText = isAr ? (config?.heroButtonTextAr || t("heroShopBtn")) : (config?.heroButtonTextEn || t("heroShopBtn"));
   const link = config?.heroLink || "/shop";
-  const image = config?.heroImage || "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?q=80&w=2000&auto=format&fit=crop";
+  const image = config?.heroImage || "https://images.unsplash.com/photo-1599599810769-bcde5a160d32?q=80&w=2000&auto=format&fit=crop";
 
   return (
     <section className="relative w-full h-[65vh] sm:h-[85vh] lg:h-[90vh] min-h-[400px] sm:min-h-[600px] overflow-hidden flex items-center">
@@ -23,34 +23,34 @@ export function Hero({ config }: { config?: LandingPageConfig }) {
       <div className="absolute inset-0">
         <Image
           src={image}
-          alt="Luxury Furniture"
+          alt="محامص ومكسرات نَتس فاخرة"
           fill
           className="object-cover transition-all duration-700 scale-105"
           priority
           quality={100}
         />
-        {/* Dark Overlay with Gradient */}
-        <div className="absolute inset-0 bg-linear-to-b from-black/60 via-black/30 to-black/60" />
+        {/* Dark Overlay with Warm Roasted Gradient */}
+        <div className="absolute inset-0 bg-linear-to-b from-black/75 via-black/45 to-black/80" />
       </div>
 
       {/* Content */}
       <div className="relative z-10 w-full px-4 sm:px-6 md:px-8 max-w-[1400px] mx-auto">
-        <div className="max-w-4xl space-y-5 sm:space-y-8 text-center sm:text-start mx-auto sm:mx-0">
+        <div className="max-w-4xl space-y-5 sm:space-y-8 text-center sm:text-start mx-auto sm:mx-0 font-cairo">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
-            className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 text-white text-[9px] sm:text-xs font-bold tracking-[0.2em] uppercase"
+            className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-amber-500/20 backdrop-blur-md rounded-full border border-amber-400/30 text-amber-300 text-[10px] sm:text-xs font-bold tracking-[0.2em] uppercase"
           >
-            <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-            {isAr ? "كوليكشن 2026 المميز" : "PREMIUM 2026 COLLECTION"}
+            <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+            {isAr ? "تحميص هوائي طازج يومياً ✨" : "ARTISAN AIR ROASTED DAILY ✨"}
           </motion.div>
 
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="text-3xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white tracking-tight leading-[1.2] sm:leading-[1.1] drop-shadow-2xl"
+            className="text-3xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-white tracking-tight leading-[1.2] sm:leading-[1.1] drop-shadow-2xl font-cairo"
           >
             {title}
           </motion.h1>
@@ -59,7 +59,7 @@ export function Hero({ config }: { config?: LandingPageConfig }) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
-            className="text-sm sm:text-xl md:text-2xl text-white/80 font-medium max-w-[280px] xs:max-w-md sm:max-w-2xl drop-shadow-md leading-relaxed mx-auto sm:mx-0"
+            className="text-sm sm:text-xl md:text-2xl text-neutral-200 font-medium max-w-[280px] xs:max-w-md sm:max-w-2xl drop-shadow-md leading-relaxed mx-auto sm:mx-0"
           >
             {subtitle}
           </motion.p>
@@ -70,12 +70,12 @@ export function Hero({ config }: { config?: LandingPageConfig }) {
             transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
             className="flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-3 sm:gap-4 pt-4 sm:pt-8"
           >
-            <Link href={link} className="w-full sm:w-auto px-6 sm:px-10 py-3.5 sm:py-5 bg-primary text-white font-bold text-base sm:text-lg rounded-full hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-primary/20 flex items-center justify-center gap-2 group">
+            <Link href={link} className="w-full sm:w-auto px-6 sm:px-10 py-3.5 sm:py-5 bg-amber-600 text-white font-bold text-base sm:text-lg rounded-full hover:bg-amber-700 hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-amber-600/30 flex items-center justify-center gap-2 group">
               {btnText}
               <div className="w-6 h-0.5 bg-white scale-x-0 group-hover:scale-x-100 transition-transform origin-left" />
             </Link>
-            <Link href="/works" className="w-full sm:w-auto px-6 sm:px-10 py-3.5 sm:py-5 bg-white/10 backdrop-blur-md text-white font-bold text-base sm:text-lg rounded-full hover:bg-white/20 hover:scale-105 active:scale-95 transition-all border border-white/20 flex items-center justify-center">
-              {t("heroWorksBtn")}
+            <Link href="/about" className="w-full sm:w-auto px-6 sm:px-10 py-3.5 sm:py-5 bg-white/10 backdrop-blur-md text-white font-bold text-base sm:text-lg rounded-full hover:bg-white/20 hover:scale-105 active:scale-95 transition-all border border-white/20 flex items-center justify-center">
+              {isAr ? "عن المحمصة والجودة" : "About Roastery"}
             </Link>
           </motion.div>
         </div>

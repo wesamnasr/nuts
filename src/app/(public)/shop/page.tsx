@@ -82,14 +82,14 @@ export default async function ShopPage({
     if (collectionResult.success && collectionResult.data) {
       // For Custom collections, we also need to apply the dual filter (Category/Search)
       // Since getCollection returns ALL items, we must filter in memory here.
-      let items = collectionResult.data.items.map((item) => item.product);
+      let items = collectionResult.data.items.map((item: any) => item.product);
 
       if (activeCategoryId) {
-        items = items.filter(p => p.categoryId === activeCategoryId);
+        items = items.filter((p: any) => p.categoryId === activeCategoryId);
       }
       if (search) {
         const q = search.toLowerCase();
-        items = items.filter(p => 
+        items = items.filter((p: any) => 
           p.nameEn.toLowerCase().includes(q) || 
           p.nameAr.toLowerCase().includes(q)
         );
@@ -147,8 +147,8 @@ export default async function ShopPage({
   // AND filter out empty collections
   const dbCollectionsRaw = collectionsResult.success ? collectionsResult.data || [] : [];
   const dbCollections = dbCollectionsRaw
-    .filter(c => c.items && c.items.length > 0)
-    .map(c => ({
+    .filter((c: any) => c.items && c.items.length > 0)
+    .map((c: any) => ({
       id: c.id,
       titleAr: c.titleAr,
       titleEn: c.titleEn

@@ -17,6 +17,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Price } from "@/components/ui/Price";
 import { motion, AnimatePresence } from "framer-motion";
@@ -45,12 +46,12 @@ export function CartDrawer({ open, setOpen, whatsappNumber, storeName }: {
 
   const handleWhatsAppCheckout = () => {
     // Standardize phone number: remove +, spaces, and add 966 if missing
-    let wpNumber = whatsappNumber || "966570581224";
+    let wpNumber = whatsappNumber || "201000000000";
     wpNumber = wpNumber.replace(/\D/g, ""); // Remove non-digits
     if (wpNumber.startsWith("0")) wpNumber = wpNumber.substring(1);
-    if (!wpNumber.startsWith("966")) wpNumber = "966" + wpNumber;
+    if (!wpNumber.startsWith("20")) wpNumber = "20" + wpNumber;
 
-    const brand = storeName || "New Concept";
+    const brand = storeName || "محامص نَتس";
     
     let message = `مرحباً *${brand}* 👋\n`;
     message += "أود إتمام طلب شراء للمنتجات التالية:\n\n";
@@ -188,16 +189,26 @@ export function CartDrawer({ open, setOpen, whatsappNumber, storeName }: {
               </div>
             </div>
             
-            <button 
-              className="relative w-full h-14 bg-[#25D366] hover:bg-[#128C7E] rounded-xl flex items-center justify-center gap-3 text-white text-lg font-bold transition-all hover:scale-[1.02] active:scale-95 shadow-lg shadow-green-200/50 overflow-hidden group"
-              onClick={handleWhatsAppCheckout}
-            >
-              <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-in-out"></div>
-              <MessageCircle className="h-6 w-6 relative z-10" />
-              <span className="relative z-10">إتمام الطلب عبر واتساب</span>
-            </button>
-            <p className="text-[10px] text-center text-neutral-400">
-              سيتم نقلك إلى تطبيق واتساب لإرسال تفاصيل الطلب مباشرة
+            <div className="w-full space-y-2">
+              <Link
+                href="/checkout"
+                onClick={() => setOpen(false)}
+                className="w-full h-13 bg-amber-600 hover:bg-amber-700 rounded-xl flex items-center justify-center gap-2 text-white text-base font-bold transition-all active:scale-95 shadow-md shadow-amber-600/20 font-cairo"
+              >
+                <span>متابعة إتمام الطلب والدفع</span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+
+              <button 
+                className="w-full h-11 bg-white hover:bg-neutral-50 border border-neutral-200 rounded-xl flex items-center justify-center gap-2 text-neutral-800 text-xs font-bold transition-all font-cairo"
+                onClick={handleWhatsAppCheckout}
+              >
+                <MessageCircle className="h-4 w-4 text-[#25D366]" />
+                <span>أو الطلب السريع عبر واتساب</span>
+              </button>
+            </div>
+            <p className="text-[10px] text-center text-neutral-400 font-cairo">
+              شحن سريع لجميع محافظات مصر • دفع بمحافظ كاش وإنستاباي والدفع عند الاستلام
             </p>
           </SheetFooter>
         )}

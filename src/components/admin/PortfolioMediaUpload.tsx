@@ -5,7 +5,7 @@ import { Upload, X, Loader2 } from "lucide-react";
 import { useImageUpload } from "@/hooks/use-image-upload";
 import { uploadPortfolioMedia } from "@/actions/portfolio";
 import { useLocale } from "@/i18n/LocaleContext";
-import { MediaType } from "@prisma/client";
+import { MediaType } from "@/actions/portfolio";
 
 interface PortfolioMediaUploadProps {
   initialUrl?: string;

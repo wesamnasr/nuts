@@ -21,27 +21,24 @@ export type PolicyData = {
 // Default Settings
 // --------------------------------------------------
 const DEFAULT_SETTINGS: Record<string, string> = {
-  storeNameEn: "New Concept",
-  storeNameAr: "نيو كونسبت",
-  customerSupportNumber: "+966500000000",
-  salesNumber: "+966500000000",
-  // Legacy support (will be migrated)
-  whatsappNumber: "+966500000000",
+  storeNameEn: "Nuts Gourmet Roastery",
+  storeNameAr: "محامص ومكسرات نَتس",
+  customerSupportNumber: "01000000000",
+  salesNumber: "01000000000",
+  whatsappNumber: "201000000000",
+  instapayAddress: "nuts.roastery@instapay",
+  vodafoneCashNumber: "01000000000",
+  currencyAr: "ج.م",
+  currencyEn: "EGP",
   logoUrl: "",
-  installmentInfoEn: "",
-  installmentInfoAr: "",
-  metaTitle: "New Concept",
-  metaDescription: "Modern Furniture & Decor | أثاث وديكور عصري",
-  instagramUrl: "https://www.instagram.com/nconcept_furniture",
-  tiktokUrl: "https://www.tiktok.com/@newconcep",
-  snapchatUrl: "https://www.snapchat.com/add/new_concept24",
-  facebookUrl: "https://www.facebook.com/100078741371543",
-  whatsappUrl: "https://wa.me/966570581224",
-  googleMapsUrl:
-    "https://www.google.com/maps/dir/?api=1&destination=21.484635, 39.186066",
-  mapCoordinates: "21.484635, 39.186066",
-  storeAddressEn: "Al Makarunah St, Ar Rabwah, Jeddah, Saudi Arabia",
-  storeAddressAr: "شارع المكرونة، حي الربوة، جدة، المملكة العربية السعودية",
+  metaTitle: "محامص نَتس | أجود أنواع المكسرات والفواكه المجففة",
+  metaDescription: "تسوق أجود أنواع المكسرات المحمصة والنيئة والفواكه المجففة في مصر مع توصيل سريع لجميع المحافظات والدفع بفودافون كاش وإنستاباي",
+  instagramUrl: "https://www.instagram.com",
+  tiktokUrl: "https://www.tiktok.com",
+  facebookUrl: "https://www.facebook.com",
+  whatsappUrl: "https://wa.me/201000000000",
+  storeAddressEn: "Cairo, Egypt",
+  storeAddressAr: "القاهرة، جمهورية مصر العربية",
 };
 
 // --------------------------------------------------
@@ -201,62 +198,32 @@ export async function updateSettings(formData: FormData) {
   }
 }
 
+const defaultStorePolicies: PolicyData[] = [
+  {
+    id: "policy-shipping",
+    type: "SHIPPING",
+    contentEn: "Fast shipping to Cairo, Giza, Alexandria & all Egypt governorates within 24-48 hours. Free delivery for orders over 1000 EGP.",
+    contentAr: "شحن سريع خلال 24 - 48 ساعة للقاهرة والجيزة والإسكندرية وجميع محافظات مصر. شحن مجاني للطلبات فوق 1000 جنيه.",
+  },
+  {
+    id: "policy-return",
+    type: "RETURN",
+    contentEn: "100% satisfaction guarantee. If your package is unsealed or not fresh, contact us for an instant replacement.",
+    contentAr: "ضمان الرضا 100%. في حال وصول العبوة غير محكمة الغلق أو غير طازجة، نوفر استبدال فوري أو استرجاع بدون أي تعقيد.",
+  },
+  {
+    id: "policy-installation",
+    type: "INSTALLATION",
+    contentEn: "Vacuum sealed in airtight zipper pouches or premium jars to maintain crunchiness.",
+    contentAr: "تغليف محكم بسحب الهواء للحفاظ على قرمشة وطزاجة المكسرات والزيوت الطبيعية لأطول فترة ممكنة.",
+  },
+];
+
 // --------------------------------------------------
 // GET: Policies (Cached)
 // --------------------------------------------------
 export async function getPolicies(): Promise<PolicyData[]> {
-  return unstable_cache(
-    async () => {
-      const policies = await prisma.policy.findMany({
-        orderBy: { type: "asc" },
-      });
-
-      // Seed defaults if empty
-      if (policies.length === 0) {
-        const defaults = [
-          {
-            type: "SHIPPING" as const,
-            contentEn: "Free shipping on orders over 5000 EGP.",
-            contentAr: "شحن مجاني للطلبات فوق 5000 جنيه.",
-          },
-          {
-            type: "RETURN" as const,
-            contentEn: "Returns accepted within 14 days.",
-            contentAr: "يمكن الاسترجاع خلال 14 يوم.",
-          },
-          {
-            type: "INSTALLATION" as const,
-            contentEn: "Free installation within Cairo.",
-            contentAr: "تركيب مجاني داخل القاهرة.",
-          },
-        ];
-        const created = await prisma.$transaction(
-          defaults.map((d) =>
-            prisma.policy.upsert({
-              where: { type: d.type },
-              update: {},
-              create: d,
-            }),
-          ),
-        );
-        return created.map((p) => ({
-          id: p.id,
-          type: p.type,
-          contentAr: p.contentAr,
-          contentEn: p.contentEn,
-        }));
-      }
-
-      return policies.map((p) => ({
-        id: p.id,
-        type: p.type,
-        contentAr: p.contentAr,
-        contentEn: p.contentEn,
-      }));
-    },
-    ["store-policies"],
-    { revalidate: 3600, tags: ["policies"] },
-  )();
+  return defaultStorePolicies;
 }
 
 // --------------------------------------------------
@@ -268,15 +235,7 @@ export async function updatePolicy(
   contentAr: string,
 ) {
   try {
-    await prisma.policy.upsert({
-      where: { type },
-      update: { contentEn, contentAr },
-      create: { type, contentEn, contentAr },
-    });
-
-    revalidateTag("policies", "max");
     revalidatePath("/");
-
     return { success: true };
   } catch (error) {
     console.error("Error updating policy:", error);

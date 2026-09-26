@@ -55,7 +55,7 @@ export default async function EditProductPage({
 
       <ProductForm 
         categories={categories} 
-        initialData={product} 
+        initialData={product as any} 
       />
     </div>
   );

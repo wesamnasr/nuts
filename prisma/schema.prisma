@@ -8,112 +8,252 @@ datasource db {
     provider = "postgresql"
 }
 
+// -----------------------------------------------------------------------------
+// 1. تصنيفات المتجر (Categories)
+// مثل: مكسرات محمصة، مكسرات نيئة، فواكه مجففة، حبوب وبذور، تمور وشوكولاتة، بوكسات هدايا
+// -----------------------------------------------------------------------------
 model Category {
-    id        String     @id @default(uuid())
-    nameAr    String
-    nameEn    String
-    slug      String     @unique
-    image     String?
-    parentId  String?
-    sortOrder Int        @default(0)
-    isActive  Boolean    @default(true)
-    createdAt DateTime   @default(now()) @db.Timestamp(6)
-    updatedAt DateTime   @default(now()) @updatedAt @db.Timestamp(6)
-    parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id], onUpdate: NoAction)
-    children  Category[] @relation("CategoryTree")
-    products  Product[]
+    id            String     @id @default(uuid())
+    nameAr        String
+    nameEn        String
+    slug          String     @unique
+    image         String?
+    descriptionAr String?
+    descriptionEn String?
+    parentId      String?
+    sortOrder     Int        @default(0)
+    isActive      Boolean    @default(true)
+    createdAt     DateTime   @default(now()) @db.Timestamp(6)
+    updatedAt     DateTime   @default(now()) @updatedAt @db.Timestamp(6)
+
+    parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onUpdate: NoAction)
+    children Category[] @relation("CategoryTree")
+    products Product[]
 
     @@index([slug], map: "idx_category_slug")
 }
 
+// -----------------------------------------------------------------------------
+// 2. المنتجات (Products)
+// بيانات صنف المكسرات/الغذاء، فوائده، بلد المنشأ، ومواصفاته الغذائية
+// -----------------------------------------------------------------------------
 model Product {
-    id                     String                  @id @default(uuid())
-    categoryId             String
-    nameAr                 String
-    nameEn                 String
-    descAr                 String?
-    descEn                 String?
-    slug                   String                  @unique
-    isVisible              Boolean                 @default(true)
-    isFeatured             Boolean                 @default(false)
-    isDeleted              Boolean                 @default(false)
-    materialAr             String?
-    materialEn             String?
-    madeInAr               String?
-    madeInEn               String?
-    warrantyAr             String?
-    warrantyEn             String?
-    installmentInfoAr      String?
-    installmentInfoEn      String?
-    deliveryInstallationAr String?
-    deliveryInstallationEn String?
-    recommendedSize        String?
-    createdAt              DateTime                @default(now()) @db.Timestamp(6)
-    updatedAt              DateTime                @default(now()) @updatedAt @db.Timestamp(6)
-    cartItems              CartItem[]
-    category               Category                @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
-    collectionItems        ProductCollectionItem[]
-    images                 ProductImage[]
-    variants               ProductVariant[]
-    reviews                Review[]
-    whatsAppOrders         WhatsAppOrder[]
+    id              String   @id @default(uuid())
+    categoryId      String
+    nameAr          String
+    nameEn          String
+    descAr          String?
+    descEn          String?
+    slug            String   @unique
+    
+    // بيانات خاصة بالمكسرات والأغذية
+    originCountryAr String?  // مثل: أمريكي، إسباني، فيتنامي، تركي، محلي
+    originCountryEn String?
+    roastTypeAr     String?  // مثل: محمص ومملح، خفيف الملح، غير محمص (نيء)، مدخن
+    roastTypeEn     String?
+    caloriesPer100g Int?     // السعرات الحرارية لكل 100 جم
+    proteinPer100g  Decimal? @db.Decimal(5, 2) // نسبة البروتين لكل 100 جم
+    isKeto          Boolean  @default(false)
+    isRaw           Boolean  @default(false)
+    isOrganic       Boolean  @default(false)
+    
+    // شارات الظهور
+    isFeatured      Boolean  @default(false)
+    isBestSeller    Boolean  @default(false)
+    isNewArrival    Boolean  @default(false)
+    isVisible       Boolean  @default(true)
+    isDeleted       Boolean  @default(false)
+
+    createdAt       DateTime @default(now()) @db.Timestamp(6)
+    updatedAt       DateTime @default(now()) @updatedAt @db.Timestamp(6)
+
+    category        Category         @relation(fields: [categoryId], references: [id], onUpdate: NoAction)
+    images          ProductImage[]
+    variants        ProductVariant[]
+    reviews         Review[]
+    cartItems       CartItem[]
+    orderItems      OrderItem[]
 
     @@index([categoryId], map: "idx_product_category")
     @@index([slug], map: "idx_product_slug")
     @@index([isVisible, isFeatured], map: "idx_product_visible")
 }
 
-model ProductImage {
-    id        String  @id @default(uuid())
-    productId String
-    url       String
-    altText   String?
-    sortOrder Int     @default(0)
-    isMain    Boolean @default(false)
-    publicId  String?
-    product   Product @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-    @@index([productId], map: "idx_image_product")
-}
-
+// -----------------------------------------------------------------------------
+// 3. أوزان وعبوات المنتج (Product Variants)
+// الوزن بالجرام (100g, 250g, 500g, 1kg)، النكهة، السعر بالجنيه المصري، والمخزون
+// -----------------------------------------------------------------------------
 model ProductVariant {
-    id             String          @id @default(uuid())
-    productId      String
-    sizeNameAr     String?
-    sizeNameEn     String?
-    detailedSizeAr String?
-    detailedSizeEn String?
-    colorAr        String?
-    colorEn        String?
-    sku            String?
-    price          Decimal         @db.Decimal(10, 2)
-    discountPrice  Decimal?        @db.Decimal(10, 2)
-    stock          Int             @default(0)
-    isDefault      Boolean         @default(false)
-    showPrice      Boolean         @default(true)
-    sortOrder      Int             @default(0)
-    createdAt      DateTime        @default(now()) @db.Timestamp(6)
-    cartItems      CartItem[]
-    product        Product         @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-    whatsAppOrders WhatsAppOrder[]
+    id            String      @id @default(uuid())
+    productId     String
+    weightGram    Int         // الوزن بالجرام: 250, 500, 1000
+    flavorAr      String?     // النكهة: مملح، ليمون وزعتر، مدخن، بدون ملح
+    flavorEn      String?
+    packageTypeAr String?     // نوع العبوة: كيس محكم الغلق (Zipper)، برطمان زجاجي، علبة هدايا
+    packageTypeEn String?
+    sku           String?     @unique
+    price         Decimal     @db.Decimal(10, 2) // السعر بالجنيه المصري EGP
+    discountPrice Decimal?    @db.Decimal(10, 2)
+    stockQuantity Int         @default(0) // عدد العبوات المتوفرة
+    isDefault     Boolean     @default(false)
+    sortOrder     Int         @default(0)
+    createdAt     DateTime    @default(now()) @db.Timestamp(6)
+    updatedAt     DateTime    @default(now()) @updatedAt @db.Timestamp(6)
+
+    product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+    cartItems  CartItem[]
+    orderItems OrderItem[]
 
     @@index([productId], map: "idx_variant_product")
 }
 
-model WhatsAppOrder {
-    id            String          @id @default(uuid())
-    customerName  String
-    customerPhone String
-    productId     String
-    variantId     String?
-    message       String?
-    status        OrderStatus     @default(PENDING)
-    createdAt     DateTime        @default(now()) @db.Timestamp(6)
-    updatedAt     DateTime        @default(now()) @updatedAt @db.Timestamp(6)
-    product       Product         @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-    variant       ProductVariant? @relation(fields: [variantId], references: [id], onUpdate: NoAction)
+// -----------------------------------------------------------------------------
+// 4. صور المنتجات (Product Images)
+// -----------------------------------------------------------------------------
+model ProductImage {
+    id        String   @id @default(uuid())
+    productId String
+    url       String
+    altText   String?
+    sortOrder Int      @default(0)
+    isMain    Boolean  @default(false)
+    product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+    @@index([productId], map: "idx_image_product")
 }
 
+// -----------------------------------------------------------------------------
+// 5. مناطق الشحن المصرية (Shipping Zones)
+// تسعير الشحن حسب المحافظات (القاهرة والجيزة، الإسكندرية، الصعيد، القناة، الدلتا)
+// -----------------------------------------------------------------------------
+model ShippingZone {
+    id             String   @id @default(uuid())
+    governorateAr  String   // اسم المحافظة بالعربي: القاهرة والجيزة، الإسكندرية...
+    governorateEn  String   // Cairo & Giza, Alexandria...
+    shippingFee    Decimal  @db.Decimal(10, 2) // سعر الشحن بالجنيه المصري
+    estimatedDaysAr String? // مثال: "1 - 2 يوم عمل"
+    estimatedDaysEn String? // e.g. "1 - 2 business days"
+    isActive       Boolean  @default(true)
+    createdAt      DateTime @default(now()) @db.Timestamp(6)
+    updatedAt      DateTime @default(now()) @updatedAt @db.Timestamp(6)
+
+    orders Order[]
+}
+
+// -----------------------------------------------------------------------------
+// 6. الطلبات والفواتير (Orders)
+// بيانات العميل المصري، العنوان، تفاصيل الشحن، وتتبع حالة الطلب
+// -----------------------------------------------------------------------------
+model Order {
+    id             String      @id @default(uuid())
+    orderNumber    String      @unique // مثال: NUT-2026-0001
+    customerName   String
+    customerPhone  String      // رقم المحمول المصري (010/011/012/015)
+    customerEmail  String?
+    governorate    String      // المحافظة
+    city           String      // المدينة أو المنطقة (المعادي، التجمع، الشيخ زايد...)
+    addressDetails String      // العنوان التفصيلي (اسم الشارع، رقم العقار، الشقة)
+    notes          String?     // ملاحظات إضافية للتوصيل
+    
+    // المبالغ المالية (كلها بالجنيه المصري EGP)
+    subtotal       Decimal     @db.Decimal(10, 2) // إجمالي المنتجات
+    shippingFee    Decimal     @db.Decimal(10, 2) // تكلفة الشحن
+    discountAmount Decimal     @default(0) @db.Decimal(10, 2) // قيمة الخصم إن وجد
+    totalAmount    Decimal     @db.Decimal(10, 2) // الإجمالي النهائي
+    couponCode     String?
+
+    status         OrderStatus @default(PENDING)
+    createdAt      DateTime    @default(now()) @db.Timestamp(6)
+    updatedAt      DateTime    @default(now()) @updatedAt @db.Timestamp(6)
+
+    shippingZoneId String?
+    shippingZone   ShippingZone? @relation(fields: [shippingZoneId], references: [id], onUpdate: NoAction)
+    items          OrderItem[]
+    payment        Payment?
+
+    @@index([customerPhone], map: "idx_order_phone")
+    @@index([status], map: "idx_order_status")
+}
+
+// -----------------------------------------------------------------------------
+// 7. عناصر الطلب (Order Items)
+// لقطة (Snapshot) لتفاصيل وسعر كل منتج لحظة إتمام الطلب
+// -----------------------------------------------------------------------------
+model OrderItem {
+    id             String          @id @default(uuid())
+    orderId        String
+    productId      String
+    variantId      String?
+    productNameAr  String
+    productNameEn  String
+    variantDetails String?         // مثال: "وزن 500 جم - محمص خفيف الملح"
+    unitPrice      Decimal         @db.Decimal(10, 2)
+    quantity       Int             @default(1)
+    totalPrice     Decimal         @db.Decimal(10, 2)
+
+    order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+    product Product         @relation(fields: [productId], references: [id], onUpdate: NoAction)
+    variant ProductVariant? @relation(fields: [variantId], references: [id], onUpdate: NoAction)
+}
+
+// -----------------------------------------------------------------------------
+// 8. عمليات الدفع المصرية (Payments)
+// دعم Paymob (كروت ومحافظ وفوري وفاليو)، InstaPay يدوي، فودافون كاش يدوي، والدفع عند الاستلام
+// -----------------------------------------------------------------------------
+model Payment {
+    id              String        @id @default(uuid())
+    orderId         String        @unique
+    method          PaymentMethod
+    status          PaymentStatus @default(PENDING)
+    amount          Decimal       @db.Decimal(10, 2)
+    currency        String        @default("EGP")
+    
+    // بيانات الربط مع Paymob
+    transactionId   String?       // رقم العملية من Paymob
+    paymobOrderId   String?       // Paymob Order ID
+    
+    // بيانات التحويل اليدوي (انستاباي / فودافون كاش)
+    receiptUrl      String?       // صورة إيصال التحويل البنكي أو المحفظة
+    senderWallet    String?       // رقم المحفظة المحول منها العميل
+    fawryRefCode    String?       // كود الدفع المرجعي لفوري
+    
+    paidAt          DateTime?
+    createdAt       DateTime      @default(now()) @db.Timestamp(6)
+    updatedAt       DateTime      @default(now()) @updatedAt @db.Timestamp(6)
+
+    order Order @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+enum PaymentMethod {
+    PAYMOB_CARD          // فيزا / ماستركارد / كارت ميزة عبر Paymob
+    PAYMOB_WALLET        // فودافون كاش / اتصالات / أورنج / وي عبر Paymob
+    PAYMOB_VALU          // تقسيط فاليو (ValU)
+    FAWRY                // فوري عبر Paymob
+    INSTAPAY_MANUAL      // تحويل إنستاباي مباشر مع رفع صورة الإيصال
+    VODAFONE_CASH_MANUAL // تحويل فودافون كاش مباشر مع رفع صورة الإيصال
+    CASH_ON_DELIVERY     // الدفع عند الاستلام (COD)
+}
+
+enum PaymentStatus {
+    PENDING              // قيد الانتظار
+    PENDING_VERIFICATION // العميل رفع الإيصال وبانتظار مراجعة الأدمن
+    COMPLETED            // تم الدفع بنجاح
+    FAILED               // فشلت العملية
+    REFUNDED             // تم رد المبلغ
+}
+
+enum OrderStatus {
+    PENDING              // جديد قيد المراجعة
+    CONFIRMED            // تم التأكيد
+    PREPARING            // جاري تجهيز وتعبئة المكسرات طازجة
+    SHIPPED              // تم التسليم لشركة الشحن / المندوب
+    DELIVERED            // تم التوصيل واستلام العميل
+    CANCELLED            // ملغي
+}
+
+// -----------------------------------------------------------------------------
+// 9. سلة المشتريات (Shopping Cart)
+// -----------------------------------------------------------------------------
 model Cart {
     id        String     @id @default(uuid())
     sessionId String     @unique
@@ -129,20 +269,57 @@ model CartItem {
     variantId String?
     quantity  Int             @default(1)
     createdAt DateTime        @default(now()) @db.Timestamp(6)
-    cart      Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-    product   Product         @relation(fields: [productId], references: [id], onUpdate: NoAction)
-    variant   ProductVariant? @relation(fields: [variantId], references: [id], onUpdate: NoAction)
+
+    cart    Cart            @relation(fields: [cartId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+    product Product         @relation(fields: [productId], references: [id], onUpdate: NoAction)
+    variant ProductVariant? @relation(fields: [variantId], references: [id], onUpdate: NoAction)
 }
 
-model Policy {
-    id        String     @id @default(uuid())
-    type      PolicyType @unique
-    contentAr String
-    contentEn String
-    createdAt DateTime   @default(now()) @db.Timestamp(6)
-    updatedAt DateTime   @default(now()) @updatedAt @db.Timestamp(6)
+// -----------------------------------------------------------------------------
+// 10. كوبونات الخصم (Coupons)
+// -----------------------------------------------------------------------------
+model Coupon {
+    id             String         @id @default(uuid())
+    code           String         @unique
+    discountType   DiscountType   @default(PERCENTAGE)
+    discountValue  Decimal        @db.Decimal(10, 2)
+    minOrderAmount Decimal?       @db.Decimal(10, 2)
+    maxUses        Int?
+    usedCount      Int            @default(0)
+    isActive       Boolean        @default(true)
+    expiresAt      DateTime?      @db.Timestamp(6)
+    createdAt      DateTime       @default(now()) @db.Timestamp(6)
+    updatedAt      DateTime       @default(now()) @updatedAt @db.Timestamp(6)
 }
 
+enum DiscountType {
+    PERCENTAGE
+    FIXED_AMOUNT
+}
+
+// -----------------------------------------------------------------------------
+// 11. تقييمات العملاء (Reviews)
+// -----------------------------------------------------------------------------
+model Review {
+    id           String   @id @default(uuid())
+    productId    String?
+    customerName String
+    rating       Int      @default(5)
+    commentAr    String?
+    commentEn    String?
+    isApproved   Boolean  @default(false)
+    isFeatured   Boolean  @default(false)
+    createdAt    DateTime @default(now()) @db.Timestamp(6)
+    updatedAt    DateTime @default(now()) @updatedAt @db.Timestamp(6)
+
+    product Product? @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+    @@index([isApproved, isFeatured], map: "idx_review_status")
+}
+
+// -----------------------------------------------------------------------------
+// 12. إعدادات المتجر وبيانات الاتصال والدفع (Store Settings)
+// -----------------------------------------------------------------------------
 model Setting {
     key       String   @id
     value     String
@@ -150,181 +327,58 @@ model Setting {
     updatedAt DateTime @default(now()) @updatedAt @db.Timestamp(6)
 }
 
+// -----------------------------------------------------------------------------
+// 13. تخصيص الصفحة الرئيسية (Landing Page Config)
+// -----------------------------------------------------------------------------
 model LandingPageConfig {
     id                  String    @id @default(uuid())
-    heroTitleAr         String
-    heroTitleEn         String
-    heroSubtitleAr      String
-    heroSubtitleEn      String
-    heroImage           String
-    heroButtonTextAr    String
-    heroButtonTextEn    String
+    heroTitleAr         String    @default("أجود أنواع المكسرات الفاخرة والطازجة")
+    heroTitleEn         String    @default("Premium Fresh & Roasted Gourmet Nuts")
+    heroSubtitleAr      String    @default("محمصة بعناية يومياً، بجودة طبيعية 100% ونكهات فريدة")
+    heroSubtitleEn      String    @default("Carefully roasted daily with 100% natural quality and unique flavors")
+    heroImage           String?
+    heroButtonTextAr    String    @default("تسوق الآن")
+    heroButtonTextEn    String    @default("Shop Now")
     heroLink            String    @default("/shop")
+    
     showHero            Boolean   @default(true)
     showFeatures        Boolean   @default(true)
-    showNewArrivals     Boolean   @default(true)
-    showBestSellers     Boolean   @default(true)
-    showFlashSales      Boolean   @default(true)
     showCategories      Boolean   @default(true)
+    showBestSellers     Boolean   @default(true)
+    showNewArrivals     Boolean   @default(true)
+    showFlashSales      Boolean   @default(true)
     showTestimonials    Boolean   @default(true)
-    showNewsletter      Boolean   @default(true)
-    showCustomerPhotos  Boolean   @default(true)
-    sectionsOrder       Json?
+    
     flashSaleEndDate    DateTime? @db.Timestamp(6)
     flashSaleDiscount   Int?      @default(0)
-    manualFlashSaleId   String?
-    manualNewArrivalIds String[]  @default([])
-    manualBestSellerIds String[]  @default([])
-    manualFlashSaleIds  String[]  @default([])
     updatedAt           DateTime  @default(now()) @updatedAt @db.Timestamp(6)
 }
 
-model CustomerPhoto {
-    id        String   @id @default(uuid())
-    image     String
-    altText   String?
-    sortOrder Int      @default(0)
-    isActive  Boolean  @default(true)
-    createdAt DateTime @default(now()) @db.Timestamp(6)
-    updatedAt DateTime @default(now()) @updatedAt @db.Timestamp(6)
-}
-
+// -----------------------------------------------------------------------------
+// 14. مميزات المتجر (Store Features)
+// مثل: طازجة يومياً، تغليف فاخر مفرغ من الهواء، شحن سريع لجميع المحافظات
+// -----------------------------------------------------------------------------
 model StoreFeature {
     id        String   @id @default(uuid())
     titleAr   String
     titleEn   String
     descAr    String
     descEn    String
-    icon      String
+    icon      String   // lucide icon name (Flame, ShieldCheck, Truck, Sparkles)
     sortOrder Int      @default(0)
     isActive  Boolean  @default(true)
     createdAt DateTime @default(now()) @db.Timestamp(6)
     updatedAt DateTime @default(now()) @updatedAt @db.Timestamp(6)
 }
 
-model ProductCollection {
-    id        String                  @id @default(uuid())
-    titleAr   String
-    titleEn   String
-    isActive  Boolean                 @default(true)
-    createdAt DateTime                @default(now()) @db.Timestamp(6)
-    updatedAt DateTime                @default(now()) @updatedAt @db.Timestamp(6)
-    items     ProductCollectionItem[]
-}
-
-model ProductCollectionItem {
-    id           String            @id @default(uuid())
-    collectionId String
-    productId    String
-    sortOrder    Int               @default(0)
-    collection   ProductCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-    product      Product           @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-}
-
-model Review {
-    id             String   @id @default(uuid())
-    productId      String?
-    customerName   String
-    customerImage  String?
-    rating         Int      @default(5)
-    comment        String?
-    commentAr      String?
-    commentEn      String?
-    customerPhone  String?
-    customerRoleAr String?
-    customerRoleEn String?
-    isApproved     Boolean  @default(false)
-    isFeatured     Boolean  @default(false)
-    createdAt      DateTime @default(now()) @db.Timestamp(6)
-    updatedAt      DateTime @default(now()) @updatedAt @db.Timestamp(6)
-    product        Product? @relation(fields: [productId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-    @@index([isApproved, isFeatured], map: "idx_review_status")
-}
-
-model PortfolioCategory {
-    id            String          @id @default(uuid())
-    titleAr       String
-    titleEn       String
-    descriptionAr String? // New: Description in Arabic
-    descriptionEn String? // New: Description in English
-    logo          String? // New: Category Logo
-    coverImage    String? // New: Category Cover Image
-    accentColor   String?         @default("#d8a868") // Custom color for the section
-    fontFamily    String? // Custom font family
-    sortOrder     Int             @default(0)
-    isActive      Boolean         @default(true)
-    createdAt     DateTime        @default(now()) @db.Timestamp(6)
-    updatedAt     DateTime        @default(now()) @updatedAt @db.Timestamp(6)
-    items         PortfolioItem[]
-}
-
-model PortfolioItem {
-    id              String            @id @default(uuid())
-    categoryId      String
-    titleAr         String?
-    titleEn         String?
-    descriptionAr   String?
-    descriptionEn   String?
-    mediaType       MediaType         @default(IMAGE)
-    mediaUrl        String
-    thumbnailUrl    String? // For videos
-    whatsappMessage String? // Custom message for WhatsApp
-    sortOrder       Int               @default(0)
-    isActive        Boolean           @default(true)
-    createdAt       DateTime          @default(now()) @db.Timestamp(6)
-    updatedAt       DateTime          @default(now()) @updatedAt @db.Timestamp(6)
-    category        PortfolioCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-
-    @@index([categoryId], map: "idx_portfolio_category")
-}
-
-enum MediaType {
-    IMAGE
-    VIDEO
-}
-
-enum OrderStatus {
-    PENDING
-    CONTACTED
-    COMPLETED
-    CANCELLED
-}
-
-enum PolicyType {
-    SHIPPING
-    RETURN
-    INSTALLATION
-}
-
-model PortfolioConfig {
-    id          String   @id @default(uuid())
-    heroTitleAr String?
-    heroTitleEn String?
-    heroDescAr  String?
-    heroDescEn  String?
-    stats       Json?    @default("[]")
-    showStats   Boolean  @default(true)
-    updatedAt   DateTime @default(now()) @updatedAt @db.Timestamp(6)
-}
-
-model AboutSection {
-    id            String   @id @default(uuid())
-    titleAr       String
-    titleEn       String
-    descriptionAr String
-    descriptionEn String
-    image         String?
-    sortOrder     Int      @default(0)
-    isActive      Boolean  @default(true)
-    createdAt     DateTime @default(now()) @db.Timestamp(6)
-    updatedAt     DateTime @default(now()) @updatedAt @db.Timestamp(6)
-}
-
+// -----------------------------------------------------------------------------
+// 15. حسابات مدراء لوحة التحكم (Admin Users)
+// -----------------------------------------------------------------------------
 model AdminUser {
     id           String   @id @default(uuid())
     username     String   @unique
     passwordHash String
+    role         String   @default("ADMIN") // ADMIN, STAFF
     createdAt    DateTime @default(now()) @db.Timestamp(6)
     updatedAt    DateTime @default(now()) @updatedAt @db.Timestamp(6)
 }

@@ -36,38 +36,25 @@ export function Footer({ storeName, logoUrl, socialLinks, addressEn, addressAr }
                 </div>
               )}
               <div>
-                <h3 className="text-xl sm:text-2xl font-black tracking-tighter uppercase text-white">
-                  {locale === "ar" ? (storeName?.ar || "أثاث فاخر") : (storeName?.en || "FURNITURE")}
+                <h3 className="text-xl sm:text-2xl font-black tracking-tighter uppercase text-white font-cairo">
+                  {locale === "ar" ? (storeName?.ar || "محامص ومكسرات نَتس") : (storeName?.en || "NUTS ROASTERY")}
                 </h3>
-                <div className="h-0.5 sm:h-1 w-10 sm:w-12 bg-primary mt-1 rounded-full" />
+                <div className="h-0.5 sm:h-1 w-10 sm:w-12 bg-amber-600 mt-1 rounded-full" />
               </div>
             </div>
             <p className="text-neutral-400 text-sm sm:text-base max-w-sm leading-relaxed font-medium">{t("brandDesc")}</p>
 
             {/* Find Us Section */}
-            <div className="pt-4 space-y-6">
+            <div className="pt-4 space-y-4">
               <h4 className="font-bold text-white flex items-center gap-2 text-base sm:text-lg">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-primary/20 flex items-center justify-center">
-                  <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary" />
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-amber-600/20 flex items-center justify-center">
+                  <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500" />
                 </div>
-                {t("footerLocation")}
+                {isAr ? "مقرنا في مصر" : "Our Roastery in Egypt"}
               </h4>
-              <a
-                href="https://maps.google.com/?q=New+Concept+Furniture+Jeddah"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group block space-y-2 max-w-xs"
-              >
-                <p className="text-neutral-300 text-sm font-semibold group-hover:text-primary transition-colors leading-relaxed">
-                  {locale === "ar"
-                    ? (addressAr || "شارع المكرونة، حي الربوة، جدة، المملكة العربية السعودية")
-                    : (addressEn || "Al Makarunah St, Ar Rabwah, Jeddah, Saudi Arabia")}
-                </p>
-                <div className="inline-flex items-center gap-2 text-primary text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0">
-                  {isAr ? "فتح الخريطة" : "Open Map"}
-                  <div className="w-4 h-[1px] bg-primary" />
-                </div>
-              </a>
+              <p className="text-sm text-neutral-400 font-cairo">
+                {isAr ? (addressAr || "القاهرة، جمهورية مصر العربية") : (addressEn || "Cairo, Egypt")}
+              </p>
             </div>
           </div>
 
@@ -94,8 +81,8 @@ export function Footer({ storeName, logoUrl, socialLinks, addressEn, addressAr }
                 </Link>
               </li>
               <li>
-                <Link href="/works" className="hover:text-primary hover:translate-x-1 transition-all inline-block">
-                  {t("our_works")}
+                <Link href="/checkout" className="hover:text-primary hover:translate-x-1 transition-all inline-block font-cairo">
+                  {isAr ? "إتمام الطلب" : "Checkout"}
                 </Link>
               </li>
             </ul>

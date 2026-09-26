@@ -23,18 +23,13 @@ export async function createReview(data: CreateReviewData) {
   try {
     const review = await prisma.review.create({
       data: {
-        productId: data.productId,
+        productId: data.productId || undefined,
         customerName: data.customerName,
-        customerPhone: data.customerPhone,
-        customerRoleAr: data.customerRoleAr,
-        customerRoleEn: data.customerRoleEn,
-        customerImage: data.customerImage,
         rating: data.rating,
-        comment: data.comment,
-        commentAr: data.commentAr,
+        commentAr: data.commentAr || data.comment,
         commentEn: data.commentEn,
         isFeatured: data.isFeatured || false,
-        isApproved: data.isApproved || false, // Moderation required by default
+        isApproved: data.isApproved || false,
       },
     });
 
@@ -122,14 +117,6 @@ export async function deleteReview(id: string) {
     const review = await prisma.review.findUnique({
       where: { id },
     });
-
-    if (review?.customerImage?.includes("blob.vercel-storage.com")) {
-      try {
-        await del(review.customerImage);
-      } catch (e) {
-        console.error("Failed to delete review image:", e);
-      }
-    }
 
     await prisma.review.delete({
       where: { id },

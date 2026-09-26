@@ -11,8 +11,8 @@ export default async function PublicLayout({
   const settings = await getSettings();
 
   const storeName = {
-    en: settings.storeNameEn || "New Concept",
-    ar: settings.storeNameAr || "نيو كونسبت",
+    en: settings.storeNameEn || "NUTS Roastery",
+    ar: settings.storeNameAr || "محامص ومكسرات نَتس",
   };
 
   const socialLinks = {

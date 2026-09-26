@@ -6,23 +6,19 @@ import { revalidatePath } from "next/cache";
 
 export async function getOrCreateCartId(): Promise<string> {
   const cookieStore = await cookies();
-  let cartId = cookieStore.get("cartId")?.value;
+  let sessionId = cookieStore.get("cartSessionId")?.value;
 
-  if (!cartId) {
-    const cart = await prisma.cart.create({
-      data: { sessionId: crypto.randomUUID() },
+  if (!sessionId) {
+    sessionId = crypto.randomUUID();
+    await prisma.cart.create({
+      data: { sessionId },
     });
-    cartId = cart.id; // Using DB ID as the cookie value for simplicity in this flow, or map sessionId
-    // In a real app, you might want to sign this or use session IDs.
-    // Here we'll align: Cookie Stores the SessionID or CartID?
-    // Schema says sessionId is unique. Let's use sessionId for the cookie.
-
-    // Correction: Let's store the sessionId in the cookie.
-    const sessionId = cart.sessionId;
-    cookieStore.set("cartId", sessionId); // Renaming cookie to 'cartSessionId' would be better but sticking to logic
-    return sessionId;
+    cookieStore.set("cartSessionId", sessionId, {
+      maxAge: 60 * 60 * 24 * 30, // 30 days
+      path: "/",
+    });
   }
-  return cartId;
+  return sessionId;
 }
 
 export async function addToCart(
@@ -36,7 +32,10 @@ export async function addToCart(
 
     if (!sessionId) {
       sessionId = crypto.randomUUID();
-      cookieStore.set("cartSessionId", sessionId);
+      cookieStore.set("cartSessionId", sessionId, {
+        maxAge: 60 * 60 * 24 * 30,
+        path: "/",
+      });
     }
 
     let cart = await prisma.cart.findUnique({ where: { sessionId } });
@@ -49,7 +48,7 @@ export async function addToCart(
       where: {
         cartId: cart.id,
         productId,
-        variantId,
+        variantId: variantId || null,
       },
     });
 
@@ -63,7 +62,7 @@ export async function addToCart(
         data: {
           cartId: cart.id,
           productId,
-          variantId,
+          variantId: variantId || null,
           quantity,
         },
       });
@@ -77,18 +76,14 @@ export async function addToCart(
   }
 }
 
-import { getLandingConfig } from "@/actions/landing";
-
-// ...
-
 export async function getCart() {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get("cartSessionId")?.value;
+  try {
+    const cookieStore = await cookies();
+    const sessionId = cookieStore.get("cartSessionId")?.value;
 
-  if (!sessionId) return null;
+    if (!sessionId) return null;
 
-  const [cart, landingConfig] = await Promise.all([
-    prisma.cart.findUnique({
+    const cart = await prisma.cart.findUnique({
       where: { sessionId },
       include: {
         items: {
@@ -105,10 +100,12 @@ export async function getCart() {
             },
             variant: {
               select: {
-                sizeNameAr: true,
-                sizeNameEn: true,
-                colorAr: true,
-                colorEn: true,
+                id: true,
+                weightGram: true,
+                flavorAr: true,
+                flavorEn: true,
+                packageTypeAr: true,
+                packageTypeEn: true,
                 price: true,
                 discountPrice: true,
               },
@@ -117,77 +114,56 @@ export async function getCart() {
           orderBy: { createdAt: "desc" },
         },
       },
-    }),
-    getLandingConfig().catch(() => null),
-  ]);
+    });
 
-  if (!cart) return null;
+    if (!cart) return null;
 
-  // Determine Flash Sale Status
-  const now = new Date();
-  const isFlashSaleActive =
-    landingConfig?.showFlashSales &&
-    landingConfig?.flashSaleEndDate &&
-    now < new Date(landingConfig.flashSaleEndDate);
+    const itemsWithPrice = cart.items.map((item) => {
+      const basePrice = Number(
+        item.variant?.discountPrice ?? item.variant?.price ?? 0,
+      );
 
-  const flashSaleDiscount = isFlashSaleActive
-    ? landingConfig?.flashSaleDiscount || 0
-    : 0;
+      const weight = item.variant?.weightGram || 250;
+      const sizeTextAr = weight >= 1000 ? `${weight / 1000} كجم` : `${weight} جم`;
+      const sizeTextEn = weight >= 1000 ? `${weight / 1000}kg` : `${weight}g`;
 
-  // Determine relevant product IDs for Flash Sale
-  let flashSaleProductIds: string[] = [];
-  if (isFlashSaleActive) {
-    if (
-      landingConfig?.manualFlashSaleIds &&
-      landingConfig.manualFlashSaleIds.length > 0
-    ) {
-      flashSaleProductIds = landingConfig.manualFlashSaleIds;
-    } else if (landingConfig?.manualFlashSaleId) {
-      flashSaleProductIds = [landingConfig.manualFlashSaleId];
-    }
-  }
+      return {
+        ...item,
+        price: basePrice,
+        sizeNameAr: sizeTextAr,
+        sizeNameEn: sizeTextEn,
+        colorAr: item.variant?.flavorAr || "",
+        colorEn: item.variant?.flavorEn || "",
+      };
+    });
 
-  // Calculate Totals and Update Items with correct price
-  const itemsWithPrice = cart.items.map((item) => {
-    const basePrice = Number(
-      item.variant?.discountPrice ?? item.variant?.price ?? 0,
+    const total = itemsWithPrice.reduce(
+      (acc, item) => acc + item.price * item.quantity,
+      0,
     );
 
-    let finalPrice = basePrice;
-    let isFlashSale = false;
+    return { ...cart, items: itemsWithPrice, total };
+  } catch (error) {
+    console.error("Error in getCart:", error);
+    return null;
+  }
+}
 
-    if (isFlashSaleActive) {
-      // Check if item is in flash sale
-      if (flashSaleProductIds.length > 0) {
-        if (flashSaleProductIds.includes(item.product.id)) {
-          isFlashSale = true;
-        }
-      } else {
-        // Auto mode: Featured products are flash sale products
-        if (item.product.isFeatured) {
-          isFlashSale = true;
-        }
-      }
+export async function updateCartItemQuantity(itemId: string, quantity: number) {
+  try {
+    if (quantity <= 0) {
+      await prisma.cartItem.delete({ where: { id: itemId } });
+    } else {
+      await prisma.cartItem.update({
+        where: { id: itemId },
+        data: { quantity },
+      });
     }
-
-    if (isFlashSale && flashSaleDiscount > 0) {
-      finalPrice = basePrice * (1 - flashSaleDiscount / 100);
-    }
-
-    return {
-      ...item,
-      price: finalPrice, // Effective price for calculation
-      isFlashSale,
-      flashSaleDiscount: isFlashSale ? flashSaleDiscount : 0,
-    };
-  });
-
-  const total = itemsWithPrice.reduce(
-    (acc, item) => acc + item.price * item.quantity,
-    0,
-  );
-
-  return { ...cart, items: itemsWithPrice, total };
+    revalidatePath("/cart");
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to update item" };
+  }
 }
 
 export async function removeFromCart(itemId: string) {
@@ -197,5 +173,22 @@ export async function removeFromCart(itemId: string) {
     return { success: true };
   } catch {
     return { success: false, error: "Failed to remove item" };
+  }
+}
+
+export async function clearCart() {
+  try {
+    const cookieStore = await cookies();
+    const sessionId = cookieStore.get("cartSessionId")?.value;
+    if (!sessionId) return { success: true };
+
+    const cart = await prisma.cart.findUnique({ where: { sessionId } });
+    if (cart) {
+      await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
+    }
+    revalidatePath("/cart");
+    return { success: true };
+  } catch {
+    return { success: false, error: "Failed to clear cart" };
   }
 }

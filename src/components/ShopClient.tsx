@@ -96,7 +96,7 @@ export function ShopClient({
       result.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     } else if (sortBy === "best_selling") {
       result.sort(
-        (a, b) => (b._count?.whatsAppOrders || 0) - (a._count?.whatsAppOrders || 0)
+        (a, b) => ((b._count?.orderItems || 0) + (b.isBestSeller ? 100 : 0)) - ((a._count?.orderItems || 0) + (a.isBestSeller ? 100 : 0))
       );
     } else {
       // featured

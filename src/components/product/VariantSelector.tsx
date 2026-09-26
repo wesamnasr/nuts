@@ -6,18 +6,24 @@ import { Badge } from "@/components/ui/badge";
 
 export type Variant = {
   id: string;
-  sizeNameAr: string | null;
-  sizeNameEn: string | null;
-  colorAr: string | null;
-  colorEn: string | null;
-  detailedSizeAr: string | null;
-  detailedSizeEn: string | null;
+  weightGram: number;
+  flavorAr: string | null;
+  flavorEn: string | null;
+  packageTypeAr: string | null;
+  packageTypeEn: string | null;
   price: number;
   discountPrice: number | null;
   stock: number;
   isDefault: boolean;
   sku: string | null;
-  showPrice: boolean;
+  // UI backwards compatibility
+  sizeNameAr?: string | null;
+  sizeNameEn?: string | null;
+  colorAr?: string | null;
+  colorEn?: string | null;
+  detailedSizeAr?: string | null;
+  detailedSizeEn?: string | null;
+  showPrice?: boolean;
 };
 
 type VariantSelectorProps = {
@@ -33,7 +39,7 @@ export function VariantSelector({
 }: VariantSelectorProps) {
   const { locale } = useLocale();
   const isAr = locale === "ar";
-  const currency = isAr ? "ر.س" : "SAR";
+  const currency = isAr ? "ج.م" : "EGP";
 
   // Memoize discount calculations
   const variantsWithDiscount = useMemo(
@@ -47,9 +53,26 @@ export function VariantSelector({
           : 0;
         const finalPrice = hasDiscount ? discount! : price;
 
-        return { ...v, price, finalPrice, hasDiscount, discountPercent };
+        const weightLabel =
+          v.weightGram >= 1000
+            ? `${v.weightGram / 1000} ${isAr ? "كجم" : "kg"}`
+            : `${v.weightGram} ${isAr ? "جم" : "g"}`;
+
+        const flavorLabel = isAr
+          ? v.flavorAr || ""
+          : v.flavorEn || "";
+
+        return {
+          ...v,
+          price,
+          finalPrice,
+          hasDiscount,
+          discountPercent,
+          weightLabel,
+          flavorLabel,
+        };
       }),
-    [variants]
+    [variants, isAr]
   );
 
   if (variants.length <= 1) return null;
@@ -57,81 +80,56 @@ export function VariantSelector({
   return (
     <div className="space-y-4">
       <h4 className="font-bold text-[10px] sm:text-xs text-neutral-400 uppercase tracking-widest">
-        {isAr ? "المقاس واللون" : "Select Variant"}
+        {isAr ? "الوزن والعبوة" : "Select Weight & Packaging"}
       </h4>
-
-      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
+      <div className="flex flex-wrap gap-2.5">
         {variantsWithDiscount.map((v) => {
-          const isActive = v.id === activeVariantId;
-          const isOutOfStock = v.stock === 0;
-
-          // Build label
-          const sizeName = isAr ? v.detailedSizeAr || v.sizeNameAr : v.detailedSizeEn || v.sizeNameEn;
-          const colorName = isAr ? v.colorAr : v.colorEn;
-          const label = [sizeName, colorName].filter(Boolean).join(" · ");
+          const isSelected = v.id === activeVariantId;
+          const isOutOfStock = v.stock <= 0;
 
           return (
             <button
               key={v.id}
-              onClick={() => !isOutOfStock && onVariantChange(v)}
+              type="button"
               disabled={isOutOfStock}
-              className={`relative flex flex-col items-center justify-center gap-1 px-4 py-4 rounded-xl border transition-all duration-300 group ${
-                isActive
-                  ? "border-[#e30613] bg-[#e30613]/5 shadow-sm z-10"
-                  : isOutOfStock
-                  ? "border-neutral-100 bg-neutral-50/50 opacity-40 cursor-not-allowed"
-                  : "border-neutral-200 hover:border-neutral-300 hover:bg-neutral-50"
-              }`}
+              onClick={() => onVariantChange(v)}
+              className={`group relative flex flex-col items-start p-3 sm:p-3.5 rounded-xl border text-sm transition-all duration-200 ${
+                isSelected
+                  ? "border-amber-600 bg-amber-50/50 shadow-sm"
+                  : "border-neutral-200 hover:border-neutral-300 bg-white"
+              } ${isOutOfStock ? "opacity-50 cursor-not-allowed bg-neutral-50" : "cursor-pointer"}`}
             >
-              {/* Variant Label */}
-              <span
-                className={`text-sm font-bold tracking-tight ${
-                  isActive ? "text-[#e30613]" : "text-neutral-900"
-                } ${isOutOfStock ? "line-through opacity-50" : ""}`}
-              >
-                {label || v.sku || `#${v.id.slice(0, 4)}`}
-              </span>
-
-              {/* Price on chip */}
               <div className="flex items-center gap-2">
-                {v.showPrice ? (
-                  <div className="flex flex-col items-center">
-                    {v.hasDiscount && (
-                       <span className="text-[10px] text-neutral-400 line-through leading-none mb-0.5">
-                         {v.price.toLocaleString("en-US")}
-                       </span>
-                    )}
-                    <span className={`text-[13px] font-black ${isActive ? "text-[#e30613]" : "text-neutral-700"}`}>
-                      {v.finalPrice.toLocaleString("en-US")} <span className="text-[9px] opacity-70 uppercase tracking-tighter">{currency}</span>
-                    </span>
-                  </div>
-                ) : (
-                  <span className="text-[#e30613] text-[10px] font-bold px-2 py-0.5 bg-[#e30613]/10 rounded-lg border border-[#e30613]/20">
-                    {isAr ? "استفسار" : "Inquiry"}
+                <span className="font-bold text-neutral-900 font-cairo">
+                  {v.weightLabel}
+                </span>
+                {v.flavorLabel && (
+                  <span className="text-xs text-neutral-500">
+                    ({v.flavorLabel})
+                  </span>
+                )}
+                {v.hasDiscount && (
+                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                    -{v.discountPercent}%
+                  </Badge>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 mt-1 font-cairo text-xs">
+                <span className="font-bold text-amber-700">
+                  {v.finalPrice} {currency}
+                </span>
+                {v.hasDiscount && (
+                  <span className="text-neutral-400 line-through text-[11px]">
+                    {v.price} {currency}
                   </span>
                 )}
               </div>
 
-              {/* Status Badges */}
-              <div className="absolute -top-1.5 -end-1.5 flex gap-1">
-                {v.hasDiscount && !isOutOfStock && (
-                  <Badge className="h-5 text-[9px] bg-[#e30613] text-white px-1.5 rounded-full shadow-md shadow-[#e30613]/10 flex items-center justify-center border-none font-black">
-                    -{v.discountPercent}%
-                  </Badge>
-                )}
-                {v.stock > 0 && v.stock <= 3 && (
-                  <Badge className="h-5 text-[9px] bg-neutral-900 text-white px-1.5 rounded-full shadow-md flex items-center justify-center border-none font-bold">
-                    {v.stock} {isAr ? "فقط" : "left"}
-                  </Badge>
-                )}
-              </div>
-
               {isOutOfStock && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/10 backdrop-blur-[1px] rounded-xl pointer-events-none">
-                   <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">
-                      {isAr ? "نفذ" : "Sold"}
-                   </span>
-                </div>
+                <span className="text-[10px] text-red-500 font-medium mt-1">
+                  {isAr ? "نفدت الكمية" : "Out of Stock"}
+                </span>
               )}
             </button>
           );

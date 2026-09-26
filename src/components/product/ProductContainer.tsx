@@ -56,20 +56,23 @@ export function ProductContainer({
   // Map variants to UI format
   const mappedVariants: Variant[] = useMemo(() => {
     if (!product.variants) return [];
-    return (product.variants as VariantType[]).map((v) => ({
+    return (product.variants as any[]).map((v) => ({
       id: v.id,
-      sizeNameAr: v.sizeNameAr,
-      sizeNameEn: v.sizeNameEn,
-      colorAr: v.colorAr,
-      colorEn: v.colorEn,
-      detailedSizeAr: v.detailedSizeAr,
-      detailedSizeEn: v.detailedSizeEn,
+      weightGram: v.weightGram || 250,
+      flavorAr: v.flavorAr || null,
+      flavorEn: v.flavorEn || null,
+      packageTypeAr: v.packageTypeAr || null,
+      packageTypeEn: v.packageTypeEn || null,
       price: Number(v.price),
       discountPrice: v.discountPrice ? Number(v.discountPrice) : null,
-      stock: v.stock,
-      isDefault: v.isDefault,
-      sku: v.sku,
-      showPrice: v.showPrice ?? true,
+      stock: v.stockQuantity ?? 10,
+      isDefault: v.isDefault || false,
+      sku: v.sku || null,
+      showPrice: true,
+      sizeNameAr: v.weightGram >= 1000 ? `${v.weightGram / 1000} كجم` : `${v.weightGram || 250} جم`,
+      sizeNameEn: v.weightGram >= 1000 ? `${v.weightGram / 1000}kg` : `${v.weightGram || 250}g`,
+      colorAr: v.flavorAr || "",
+      colorEn: v.flavorEn || "",
     }));
   }, [product.variants]);
 
@@ -113,18 +116,14 @@ export function ProductContainer({
     return { price, hasDiscount, finalPrice, discountPercent, isFlashSale, savedAmount };
   }, [activeVariant, flashSaleDiscount]);
 
-  const currency = isAr ? "ر.س" : "SAR";
+  const currency = isAr ? "ج.م" : "EGP";
   const productName = isAr ? product.nameAr : product.nameEn;
   const categoryName = isAr ? product.category?.nameAr : product.category?.nameEn;
 
   const variantLabel = [
-    isAr ? activeVariant?.detailedSizeAr || activeVariant?.sizeNameAr : activeVariant?.detailedSizeEn || activeVariant?.sizeNameEn,
-    isAr ? activeVariant?.colorAr : activeVariant?.colorEn,
+    isAr ? (activeVariant?.weightGram ? `${activeVariant.weightGram} جم` : activeVariant?.sizeNameAr) : (activeVariant?.weightGram ? `${activeVariant.weightGram}g` : activeVariant?.sizeNameEn),
+    isAr ? activeVariant?.flavorAr : activeVariant?.flavorEn,
   ].filter(Boolean).join(" · ");
-
-  const installmentInfo = isAr
-    ? (product.installmentInfoAr || installmentFromSettings?.ar || "")
-    : (product.installmentInfoEn || installmentFromSettings?.en || "");
 
   const isOutOfStock = !activeVariant || activeVariant.stock === 0;
 
@@ -199,17 +198,17 @@ export function ProductContainer({
               </div>
             )}
 
-            {(activeVariant?.showPrice && installmentInfo) && (
-              <div className="flex items-center gap-2 text-[10px] font-black text-neutral-600 bg-neutral-50 p-2 rounded-lg border border-neutral-100">
-                <CreditCard size={14} className="text-[#e30613]" />
-                {installmentInfo}
+            {activeVariant?.showPrice && (
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-800 bg-amber-50/80 p-2.5 rounded-xl border border-amber-200/60 font-cairo">
+                <Shield size={16} className="text-amber-600 shrink-0" />
+                <span>{isAr ? "محمص طازج ومغلف بسحب الهواء للحفاظ على أعلى جودة وقرمشة" : "Freshly roasted and vacuum-sealed for premium freshness"}</span>
               </div>
             )}
           </div>
 
           {/* Social Proof */}
           <div className="flex items-center gap-2 text-xs font-bold text-neutral-600 pb-2">
-            <Eye size={16} className="text-[#e30613]" />
+            <Eye size={16} className="text-amber-600" />
             <span>{viewCount} {isAr ? "من عملائنا يشاهدون هذا المنتج الآن" : "customers are viewing this product"}</span>
           </div>
 
@@ -237,8 +236,8 @@ export function ProductContainer({
                   name: productName,
                   price: priceInfo.finalPrice,
                   image: product.images[0]?.url || "",
-                  color: isAr ? activeVariant.colorAr || "" : activeVariant.colorEn || "",
-                  size: isAr ? activeVariant.sizeNameAr || "" : activeVariant.sizeNameEn || "",
+                  color: isAr ? (activeVariant.flavorAr || activeVariant.colorAr || "") : (activeVariant.flavorEn || activeVariant.colorEn || ""),
+                  size: isAr ? (activeVariant.weightGram ? `${activeVariant.weightGram} جم` : activeVariant.sizeNameAr || "") : (activeVariant.weightGram ? `${activeVariant.weightGram}g` : activeVariant.sizeNameEn || ""),
                   quantity: 1,
                   slug: product.slug
                 });
@@ -273,34 +272,34 @@ export function ProductContainer({
             </div>
           </div>
 
-          {/* Highlights Grid - Now at the end */}
+          {/* Highlights Grid */}
           <div className="grid grid-cols-2 gap-3 pt-6 border-t border-neutral-100">
             <div className="flex items-center gap-3 p-3 rounded-2xl bg-neutral-50/50 border border-neutral-100">
-              <Box size={18} className="text-neutral-400" />
+              <Box size={18} className="text-amber-600" />
               <div className="flex flex-col">
-                <span className="text-[10px] text-neutral-400 font-bold uppercase">{isAr ? "الخامة" : "Material"}</span>
-                <span className="text-xs font-bold">{isAr ? product.materialAr || "خشب طبيعي" : product.materialEn || "Solid Wood"}</span>
+                <span className="text-[10px] text-neutral-400 font-bold uppercase">{isAr ? "التحميص" : "Roast"}</span>
+                <span className="text-xs font-bold">{isAr ? (product as any).roastTypeAr || "محمص طازج" : (product as any).roastTypeEn || "Fresh Roasted"}</span>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 rounded-2xl bg-neutral-50/50 border border-neutral-100">
-              <Shield size={18} className="text-neutral-400" />
+              <Shield size={18} className="text-amber-600" />
               <div className="flex flex-col">
-                <span className="text-[10px] text-neutral-400 font-bold uppercase">{isAr ? "الضمان" : "Warranty"}</span>
-                <span className="text-xs font-bold">{isAr ? product.warrantyAr || "ضمان قوى" : product.warrantyEn || "Strong Warranty"}</span>
+                <span className="text-[10px] text-neutral-400 font-bold uppercase">{isAr ? "المذاق" : "Quality"}</span>
+                <span className="text-xs font-bold">{isAr ? ((product as any).isKeto ? "مناسب للكيتو" : "طبيعي 100%") : "100% Natural"}</span>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 rounded-2xl bg-neutral-50/50 border border-neutral-100">
-              <Truck size={18} className="text-neutral-400" />
+              <Truck size={18} className="text-amber-600" />
               <div className="flex flex-col">
-                <span className="text-[10px] text-neutral-400 font-bold uppercase">{isAr ? "التوريد" : "Shipping"}</span>
-                <span className="text-xs font-bold">{isAr ? "شحن لجميع أنحاء المملكة" : "Nationwide Delivery"}</span>
+                <span className="text-[10px] text-neutral-400 font-bold uppercase">{isAr ? "التوصيل" : "Delivery"}</span>
+                <span className="text-xs font-bold">{isAr ? "شحن لجميع المحافظات" : "Fast Egypt Delivery"}</span>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 rounded-2xl bg-neutral-50/50 border border-neutral-100">
-              <Info size={18} className="text-neutral-400" />
+              <Info size={18} className="text-amber-600" />
               <div className="flex flex-col">
                 <span className="text-[10px] text-neutral-400 font-bold uppercase">{isAr ? "المنشأ" : "Origin"}</span>
-                <span className="text-xs font-bold">{isAr ? product.madeInAr || "تصنيع فاخر" : product.madeInEn || "Premium Make"}</span>
+                <span className="text-xs font-bold">{isAr ? (product as any).originCountryAr || "فاخر منتقى" : (product as any).originCountryEn || "Premium Quality"}</span>
               </div>
             </div>
           </div>
@@ -310,8 +309,8 @@ export function ProductContainer({
       {/* Tabs Section */}
       <div className="mt-16 lg:mt-24">
         <ProductTabs
-          product={product}
-          activeVariant={activeVariant || { detailedSizeAr: null, detailedSizeEn: null, sizeNameAr: null, sizeNameEn: null }}
+          product={product as any}
+          activeVariant={activeVariant || {}}
           policies={policies}
         />
       </div>

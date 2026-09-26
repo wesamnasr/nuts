@@ -16,10 +16,10 @@ export default async function AdminDashboardPage() {
     const results = await Promise.allSettled([
       prisma.product.count({ where: { isDeleted: false } }),
       prisma.category.count(),
-      prisma.whatsAppOrder.count(),
-      prisma.policy.count(),
-      // Fetch top 5 ordered products by grouping WhatsAppOrders
-      prisma.whatsAppOrder.groupBy({
+      prisma.order.count(),
+      prisma.shippingZone.count(),
+      // Fetch top 5 ordered products by grouping OrderItems
+      prisma.orderItem.groupBy({
         by: ['productId'],
         _count: {
           productId: true,
@@ -30,13 +30,6 @@ export default async function AdminDashboardPage() {
           },
         },
         take: 5,
-        where: {
-          // Exclude any orders without a related product ID
-          // Prisma allows not: null for optional relations, but WhatsAppOrder.productId is optional string
-          productId: {
-            not: "" // Assuming productId is a string, Prisma expects a string in 'not'
-          }
-        }
       })
     ]);
 
@@ -47,7 +40,7 @@ export default async function AdminDashboardPage() {
     
     // Process top products data
     if (results[4].status === 'fulfilled' && results[4].value.length > 0) {
-      const topProductIds = results[4].value.map(p => p.productId as string);
+      const topProductIds = results[4].value.map((p: any) => p.productId as string);
       
       // Fetch product details to get names
       const products = await prisma.product.findMany({

@@ -1,5 +1,7 @@
+"use client";
+
 import { cn } from "@/lib/utils";
-import Image from "next/image";
+import { useLocale } from "@/i18n/LocaleContext";
 
 interface PriceProps {
   amount: number;
@@ -7,22 +9,18 @@ interface PriceProps {
   iconClassName?: string;
 }
 
-export function Price({ amount, className, iconClassName }: PriceProps) {
+export function Price({ amount, className }: PriceProps) {
+  const { locale } = useLocale();
+  const isAr = locale === "ar";
+
   return (
-    <div className={cn("inline-flex items-center gap-1.5", className)}>
+    <div className={cn("inline-flex items-baseline gap-1 font-cairo", className)}>
       <span className="font-bold tabular-nums tracking-tight">
         {amount.toLocaleString("en-US")}
       </span>
-      <div className={cn("relative w-8 h-8 opacity-90", iconClassName)}>
-        <Image
-          src="/SAR.svg"
-          alt="SAR"
-          fill
-          className="object-contain"
-          sizes="32px"
-          priority
-        />
-      </div>
+      <span className="text-xs font-bold text-amber-700">
+        {isAr ? "ج.م" : "EGP"}
+      </span>
     </div>
   );
 }

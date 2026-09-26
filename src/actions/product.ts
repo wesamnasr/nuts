@@ -2,9 +2,10 @@
 
 import { prisma } from "@/lib/db";
 import { Prisma } from "@prisma/client";
-import { transformProduct } from "@/lib/transformers";
+import { transformProduct, type StorefrontProduct } from "@/lib/transformers";
 import { put, del } from "@vercel/blob";
 import { BLOB_TOKEN } from "@/lib/blob";
+import { revalidatePath } from "next/cache";
 
 export type ProductFilter = {
   categoryId?: string;
@@ -13,7 +14,10 @@ export type ProductFilter = {
   limit?: number;
   includeHidden?: boolean;
   excludeId?: string;
-  sort?: "newest" | "best-selling" | "featured";
+  sort?: "newest" | "best-selling" | "featured" | "price-asc" | "price-desc";
+  isKeto?: boolean;
+  isRaw?: boolean;
+  isOrganic?: boolean;
 };
 
 export type ActionResponse<T> = {
@@ -24,19 +28,76 @@ export type ActionResponse<T> = {
 
 export interface ProductVariantInput {
   id?: string;
-  detailedSizeAr?: string;
-  detailedSizeEn?: string;
-  colorAr?: string;
-  colorEn?: string;
+  weightGram: number | string;
+  flavorAr?: string;
+  flavorEn?: string;
+  packageTypeAr?: string;
+  packageTypeEn?: string;
   sku?: string;
   price: number | string;
   discountPrice?: number | string | null;
-  stock?: number | string;
+  stockQuantity?: number | string;
   isDefault?: boolean;
-  showPrice?: boolean;
 }
 
+// Common Variant Selection
+const variantSelect = {
+  id: true,
+  price: true,
+  discountPrice: true,
+  weightGram: true,
+  flavorAr: true,
+  flavorEn: true,
+  packageTypeAr: true,
+  packageTypeEn: true,
+  stockQuantity: true,
+  isDefault: true,
+  sku: true,
+};
 
+// Common Product Select for Storefront
+const productStorefrontSelect = {
+  id: true,
+  nameAr: true,
+  nameEn: true,
+  slug: true,
+  descAr: true,
+  descEn: true,
+  categoryId: true,
+  originCountryAr: true,
+  originCountryEn: true,
+  roastTypeAr: true,
+  roastTypeEn: true,
+  caloriesPer100g: true,
+  proteinPer100g: true,
+  isKeto: true,
+  isRaw: true,
+  isOrganic: true,
+  isFeatured: true,
+  isBestSeller: true,
+  isNewArrival: true,
+  isVisible: true,
+  createdAt: true,
+  updatedAt: true,
+  category: {
+    select: { id: true, nameAr: true, nameEn: true, slug: true },
+  },
+  images: {
+    orderBy: { isMain: "desc" as const },
+    select: { url: true, altText: true },
+  },
+  variants: {
+    orderBy: { sortOrder: "asc" as const },
+    select: variantSelect,
+  },
+  _count: {
+    select: { images: true, orderItems: true },
+  },
+};
+
+/**
+ * Get products with pagination, search, category filter, and sorting
+ */
 export async function getProducts({
   categoryId,
   search,
@@ -44,11 +105,14 @@ export async function getProducts({
   limit = 20,
   includeHidden = false,
   excludeId,
-  sort,
+  sort = "newest",
+  isKeto,
+  isRaw,
+  isOrganic,
 }: ProductFilter) {
   try {
     const skip = (page - 1) * limit;
-    const where: Record<string, unknown> = {
+    const where: Prisma.ProductWhereInput = {
       isDeleted: false,
     };
 
@@ -58,6 +122,10 @@ export async function getProducts({
 
     if (categoryId) where.categoryId = categoryId;
     if (excludeId) where.id = { not: excludeId };
+    if (isKeto) where.isKeto = true;
+    if (isRaw) where.isRaw = true;
+    if (isOrganic) where.isOrganic = true;
+
     if (search) {
       where.OR = [
         { nameAr: { contains: search, mode: "insensitive" } },
@@ -67,70 +135,38 @@ export async function getProducts({
       ];
     }
 
-    let orderBy: Prisma.ProductOrderByWithRelationInput = {
-      isFeatured: "desc",
-    };
-    if (sort === "newest") {
-      orderBy = { createdAt: "desc" };
-    } else if (sort === "best-selling") {
-      orderBy = { whatsAppOrders: { _count: "desc" } };
+    let orderBy: Prisma.ProductOrderByWithRelationInput = { createdAt: "desc" };
+    if (sort === "best-selling") {
+      orderBy = { isBestSeller: "desc" };
+    } else if (sort === "featured") {
+      orderBy = { isFeatured: "desc" };
     }
 
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where,
-        select: {
-          id: true,
-          nameAr: true,
-          nameEn: true,
-          slug: true,
-          categoryId: true,
-          images: {
-            take: 1,
-            orderBy: { isMain: "desc" },
-            select: { url: true, altText: true },
-          },
-          variants: {
-            where: { isDefault: true },
-            select: {
-              id: true,
-              price: true,
-              discountPrice: true,
-              colorAr: true,
-              colorEn: true,
-              sizeNameAr: true,
-              sizeNameEn: true,
-              showPrice: true,
-             stock: true,
-             },
-            take: 1,
-          },
-          category: {
-            select: { id: true, nameAr: true, nameEn: true, slug: true },
-          },
-          isFeatured: true,
-          isVisible: true,
-          _count: { select: { images: true, whatsAppOrders: true } },
-          recommendedSize: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+        select: productStorefrontSelect,
+        orderBy,
         skip,
         take: limit,
-        orderBy,
       }),
       prisma.product.count({ where }),
     ]);
 
-    const transformedProducts = products.map(transformProduct);
+    const transformed = products.map((p) => transformProduct(p as any));
 
     return {
       success: true,
       data: {
-        products: transformedProducts,
+        products: transformed,
         total,
         totalPages: Math.ceil(total / limit),
-        currentPage: page,
+      },
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     };
   } catch (error) {
@@ -139,96 +175,110 @@ export async function getProducts({
   }
 }
 
+/**
+ * Get a single product by slug
+ */
 export async function getProductBySlug(slug: string) {
   try {
     const product = await prisma.product.findUnique({
-      where: { slug, isDeleted: false },
+      where: { slug },
       include: {
-        images: { orderBy: { sortOrder: "asc" } },
-        variants: { orderBy: { sortOrder: "asc" } },
         category: true,
+        images: {
+          orderBy: { sortOrder: "asc" },
+        },
+        variants: {
+          orderBy: { sortOrder: "asc" },
+        },
+        reviews: {
+          where: { isApproved: true },
+          orderBy: { createdAt: "desc" },
+        },
       },
     });
 
-    if (!product) return { success: false, error: "Product not found" };
+    if (!product || product.isDeleted || !product.isVisible) {
+      return { success: false, error: "Product not found" };
+    }
 
-    // Convert Decimals to numbers for client components
-    const transformedProduct = {
+    const serializedProduct = {
       ...product,
+      proteinPer100g:
+        product.proteinPer100g !== null && product.proteinPer100g !== undefined
+          ? Number(product.proteinPer100g)
+          : null,
       variants: product.variants.map((v) => ({
         ...v,
         price: Number(v.price),
-        discountPrice: v.discountPrice ? Number(v.discountPrice) : null,
-        showPrice: v.showPrice,
+        discountPrice:
+          v.discountPrice !== null && v.discountPrice !== undefined
+            ? Number(v.discountPrice)
+            : null,
       })),
     };
 
-    return { success: true, data: transformedProduct };
+    return { success: true, data: serializedProduct };
   } catch (error) {
-    console.error(`Error in getProductBySlug (${slug}):`, error);
-    return { success: false, error: "Failed to fetch product details" };
+    console.error("Error in getProductBySlug:", error);
+    return { success: false, error: "Failed to fetch product" };
   }
 }
 
-// Fetch featured/on-sale products for homepage
-export async function getProductsByIds(ids: string[]) {
+/**
+ * Get product by ID (Admin or Direct lookup)
+ */
+export async function getProductById(id: string) {
   try {
-    const products = await prisma.product.findMany({
-      where: { id: { in: ids }, isDeleted: false },
-      select: {
-        id: true,
-        nameAr: true,
-        nameEn: true,
-        slug: true,
-        categoryId: true,
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: {
+        category: true,
         images: {
-          take: 1,
-          orderBy: { isMain: "desc" },
-          select: { url: true, altText: true },
+          orderBy: { sortOrder: "asc" },
         },
         variants: {
-          where: { isDefault: true },
-          take: 1,
-          select: {
-            id: true,
-            price: true,
-            discountPrice: true,
-            colorAr: true,
-            colorEn: true,
-            sizeNameAr: true,
-            sizeNameEn: true,
-            showPrice: true,
-           stock: true,
-             },
+          orderBy: { sortOrder: "asc" },
         },
-        category: {
-          select: { id: true, nameAr: true, nameEn: true, slug: true },
-        },
-        isFeatured: true,
-        isVisible: true,
-        _count: { select: { images: true, whatsAppOrders: true } },
-        createdAt: true,
-        updatedAt: true,
       },
-      orderBy: { createdAt: "desc" },
     });
 
-    const transformed = products.map(transformProduct);
+    if (!product || product.isDeleted) {
+      return { success: false, error: "Product not found" };
+    }
 
-    return { success: true, data: transformed };
+    const serializedProduct = {
+      ...product,
+      proteinPer100g:
+        product.proteinPer100g !== null && product.proteinPer100g !== undefined
+          ? Number(product.proteinPer100g)
+          : null,
+      variants: product.variants.map((v) => ({
+        ...v,
+        price: Number(v.price),
+        discountPrice:
+          v.discountPrice !== null && v.discountPrice !== undefined
+            ? Number(v.discountPrice)
+            : null,
+      })),
+    };
+
+    return { success: true, data: serializedProduct };
   } catch (error) {
-    console.error("Error in getProductsByIds:", error);
-    return { success: false, error: "Failed to fetch products" };
+    console.error("Error in getProductById:", error);
+    return { success: false, error: "Failed to fetch product" };
   }
 }
 
+/**
+ * Get featured products for homepage / sections
+ */
 export async function getFeaturedProducts(options?: {
   limit?: number;
   categoryId?: string;
   search?: string;
 }) {
   try {
-    const { limit = 20, categoryId, search } = options || {};
+    const { limit = 8, categoryId, search } = options || {};
     const where: Prisma.ProductWhereInput = {
       isVisible: true,
       isDeleted: false,
@@ -245,54 +295,21 @@ export async function getFeaturedProducts(options?: {
 
     const products = await prisma.product.findMany({
       where,
-      select: {
-        id: true,
-        nameAr: true,
-        nameEn: true,
-        slug: true,
-        categoryId: true,
-        images: {
-          take: 1,
-          orderBy: { isMain: "desc" },
-          select: { url: true, altText: true },
-        },
-        variants: {
-          where: { isDefault: true },
-          take: 1,
-          select: {
-            id: true,
-            price: true,
-            discountPrice: true,
-            colorAr: true,
-            colorEn: true,
-            sizeNameAr: true,
-            sizeNameEn: true,
-            showPrice: true,
-           stock: true,
-             },
-        },
-        category: {
-          select: { id: true, nameAr: true, nameEn: true, slug: true },
-        },
-        isFeatured: true,
-        isVisible: true,
-        _count: { select: { images: true, whatsAppOrders: true } },
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: productStorefrontSelect,
       take: limit,
       orderBy: { createdAt: "desc" },
     });
 
-    const transformed = products.map(transformProduct);
-
-    return { success: true, data: transformed };
+    return { success: true, data: products.map((p) => transformProduct(p as any)) };
   } catch (error) {
     console.error("Error in getFeaturedProducts:", error);
     return { success: false, error: "Failed to fetch featured products" };
   }
 }
 
+/**
+ * Get new arrivals
+ */
 export async function getNewArrivals(options?: {
   limit?: number;
   categoryId?: string;
@@ -315,54 +332,21 @@ export async function getNewArrivals(options?: {
 
     const products = await prisma.product.findMany({
       where,
-      select: {
-        id: true,
-        nameAr: true,
-        nameEn: true,
-        slug: true,
-        categoryId: true,
-        images: {
-          take: 1,
-          orderBy: { isMain: "desc" },
-          select: { url: true, altText: true },
-        },
-        variants: {
-          where: { isDefault: true },
-          take: 1,
-          select: {
-            id: true,
-            price: true,
-            discountPrice: true,
-            colorAr: true,
-            colorEn: true,
-            sizeNameAr: true,
-            sizeNameEn: true,
-            showPrice: true,
-           stock: true,
-             },
-        },
-        category: {
-          select: { id: true, nameAr: true, nameEn: true, slug: true },
-        },
-        isFeatured: true,
-        isVisible: true,
-        _count: { select: { images: true, whatsAppOrders: true } },
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: productStorefrontSelect,
       take: limit,
       orderBy: { createdAt: "desc" },
     });
 
-    const transformed = products.map(transformProduct);
-
-    return { success: true, data: transformed };
+    return { success: true, data: products.map((p) => transformProduct(p as any)) };
   } catch (error) {
     console.error("Error in getNewArrivals:", error);
     return { success: false, error: "Failed to fetch new arrivals" };
   }
 }
 
+/**
+ * Get best sellers
+ */
 export async function getBestSellers(options?: {
   limit?: number;
   categoryId?: string;
@@ -370,25 +354,10 @@ export async function getBestSellers(options?: {
 }) {
   try {
     const { limit = 8, categoryId, search } = options || {};
-
-    // 1. Get IDs of New Arrivals (latest 8) to exclude them
-    // Note: If we are filtering, we might technically be excluding "New Arrivals" that MATCH the filter.
-    // Ideally we strictly exclude the GLOBAL new arrivals to maintain the definition of "Best Sellers" vs "New Arrivals".
-    // Or we exclude "New Arrivals" within this category.
-    // Let's stick to global exclusion for consistency with the homepage logic.
-    const newArrivals = await prisma.product.findMany({
-      where: { isVisible: true, isDeleted: false },
-      select: { id: true },
-      take: 8,
-      orderBy: { createdAt: "desc" },
-    });
-
-    const excludedIds = newArrivals.map((p) => p.id);
-
     const where: Prisma.ProductWhereInput = {
       isVisible: true,
       isDeleted: false,
-      id: { notIn: excludedIds },
+      isBestSeller: true,
     };
 
     if (categoryId) where.categoryId = categoryId;
@@ -399,72 +368,58 @@ export async function getBestSellers(options?: {
       ];
     }
 
-    // 2. Fetch Best Sellers (excluding new arrivals)
     const products = await prisma.product.findMany({
       where,
-      select: {
-        id: true,
-        nameAr: true,
-        nameEn: true,
-        slug: true,
-        categoryId: true,
-        images: {
-          take: 1,
-          orderBy: { isMain: "desc" },
-          select: { url: true, altText: true },
-        },
-        variants: {
-          where: { isDefault: true },
-          take: 1,
-          select: {
-            id: true,
-            price: true,
-            discountPrice: true,
-            colorAr: true,
-            colorEn: true,
-            sizeNameAr: true,
-            sizeNameEn: true,
-            showPrice: true,
-           stock: true,
-             },
-        },
-        category: {
-          select: { id: true, nameAr: true, nameEn: true, slug: true },
-        },
-        isFeatured: true,
-        isVisible: true,
-        _count: { select: { images: true, whatsAppOrders: true } },
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: productStorefrontSelect,
       take: limit,
-      orderBy: { nameEn: "asc" }, // Should ideally be by sales count if we had it, but sorting by nameEn is legacy behavior here.
-      // Actually, line 376 in original was orderBy nameEn. In getProducts count was whatsAppOrders.
-      // I will keep nameEn to avoid changing behavior, but worth noting.
+      orderBy: { createdAt: "desc" },
     });
 
-    const transformed = products.map(transformProduct);
-
-    return { success: true, data: transformed };
+    return { success: true, data: products.map((p) => transformProduct(p as any)) };
   } catch (error) {
     console.error("Error in getBestSellers:", error);
     return { success: false, error: "Failed to fetch best sellers" };
   }
 }
 
-export async function getSpecialOffers(options?: {
-  limit?: number;
-  categoryId?: string;
-  search?: string;
-}) {
+/**
+ * Get products by IDs
+ */
+export async function getProductsByIds(ids: string[]) {
   try {
-    const { limit = 20, categoryId, search } = options || {};
+    if (!ids || ids.length === 0) return { success: true, data: [] };
+
+    const products = await prisma.product.findMany({
+      where: {
+        id: { in: ids },
+        isDeleted: false,
+        isVisible: true,
+      },
+      select: productStorefrontSelect,
+    });
+
+    return { success: true, data: products.map((p) => transformProduct(p as any)) };
+  } catch (error) {
+    console.error("Error in getProductsByIds:", error);
+    return { success: false, error: "Failed to fetch products" };
+  }
+}
+
+/**
+ * Get special offers / discounted products
+ */
+export async function getSpecialOffers(params?: number | { categoryId?: string; search?: string; limit?: number }) {
+  try {
+    const limit = typeof params === "number" ? params : (params?.limit || 8);
+    const categoryId = typeof params === "object" ? params.categoryId : undefined;
+    const search = typeof params === "object" ? params.search : undefined;
+
     const where: Prisma.ProductWhereInput = {
       isVisible: true,
       isDeleted: false,
       variants: {
         some: {
-          discountPrice: { not: null },
+          discountPrice: { not: null, gt: 0 },
         },
       },
     };
@@ -479,269 +434,135 @@ export async function getSpecialOffers(options?: {
 
     const products = await prisma.product.findMany({
       where,
-      select: {
-        id: true,
-        nameAr: true,
-        nameEn: true,
-        slug: true,
-        categoryId: true,
-        images: {
-          take: 1,
-          orderBy: { isMain: "desc" },
-          select: { url: true, altText: true },
-        },
-        variants: {
-          where: { discountPrice: { not: null } },
-          take: 1,
-          select: {
-            id: true,
-            price: true,
-            discountPrice: true,
-            colorAr: true,
-            colorEn: true,
-            sizeNameAr: true,
-            sizeNameEn: true,
-            showPrice: true,
-          },
-        },
-        category: {
-          select: { id: true, nameAr: true, nameEn: true, slug: true },
-        },
-        isFeatured: true,
-        isVisible: true,
-        _count: { select: { images: true, whatsAppOrders: true } },
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: productStorefrontSelect,
       take: limit,
       orderBy: { createdAt: "desc" },
     });
 
-    const transformed = products.map(transformProduct);
-
-    return { success: true, data: transformed };
+    return { success: true, data: products.map((p) => transformProduct(p as any)) };
   } catch (error) {
     console.error("Error in getSpecialOffers:", error);
     return { success: false, error: "Failed to fetch special offers" };
   }
 }
 
-// ---------------------------------------------------------
-// NEW: Create Product with Vercel Blob Image Upload
-// ---------------------------------------------------------
-import { revalidatePath } from "next/cache";
-
+/**
+ * Create a new Product
+ */
 export async function createProduct(formData: FormData) {
   try {
-    // 1. Basic & Technical Fields
-    const data = {
-      nameAr: formData.get("nameAr") as string,
-      nameEn: formData.get("nameEn") as string,
-      slug: formData.get("slug") as string,
-      categoryId: formData.get("categoryId") as string,
-      descAr: formData.get("descAr") as string,
-      descEn: formData.get("descEn") as string,
-      materialAr: formData.get("materialAr") as string,
-      materialEn: formData.get("materialEn") as string,
-      madeInAr: formData.get("madeInAr") as string,
-      madeInEn: formData.get("madeInEn") as string,
-      warrantyAr: formData.get("warrantyAr") as string,
-      warrantyEn: formData.get("warrantyEn") as string,
-      installmentInfoAr: formData.get("installmentInfoAr") as string,
-      installmentInfoEn: formData.get("installmentInfoEn") as string,
-      deliveryInstallationAr: formData.get("deliveryInstallationAr") as string,
-      deliveryInstallationEn: formData.get("deliveryInstallationEn") as string,
-      recommendedSize: formData.get("recommendedSize") as string,
-      isVisible: formData.get("isVisible") === "true",
-      isFeatured: formData.get("isFeatured") === "true",
-    };
+    const nameAr = formData.get("nameAr") as string;
+    const nameEn = formData.get("nameEn") as string;
+    let slug = formData.get("slug") as string;
+    const categoryId = formData.get("categoryId") as string;
 
-    // Auto-generate slug if missing
-    if (!data.slug) {
-      const baseSlug = (data.nameEn || "product")
+    if (!nameAr || !nameEn || !categoryId) {
+      return { success: false, error: "الاسم والتصنيف مطلوبان" };
+    }
+
+    if (!slug) {
+      const baseSlug = nameEn
         .toLowerCase()
         .trim()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "");
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      data.slug = `${baseSlug}-${randomSuffix}`;
+      slug = `${baseSlug}-${randomSuffix}`;
     }
 
-    // 2. Parse Variants (JSON string from client)
-    const variantsJson = formData.get("variants") as string;
-    const variantsData = JSON.parse(variantsJson || "[]");
+    const data = {
+      nameAr,
+      nameEn,
+      slug,
+      categoryId,
+      descAr: (formData.get("descAr") as string) || null,
+      descEn: (formData.get("descEn") as string) || null,
+      originCountryAr: (formData.get("originCountryAr") as string) || null,
+      originCountryEn: (formData.get("originCountryEn") as string) || null,
+      roastTypeAr: (formData.get("roastTypeAr") as string) || null,
+      roastTypeEn: (formData.get("roastTypeEn") as string) || null,
+      caloriesPer100g: formData.get("caloriesPer100g")
+        ? Number(formData.get("caloriesPer100g"))
+        : null,
+      proteinPer100g: formData.get("proteinPer100g")
+        ? Number(formData.get("proteinPer100g"))
+        : null,
+      isKeto: formData.get("isKeto") === "true",
+      isRaw: formData.get("isRaw") === "true",
+      isOrganic: formData.get("isOrganic") === "true",
+      isFeatured: formData.get("isFeatured") === "true",
+      isBestSeller: formData.get("isBestSeller") === "true",
+      isNewArrival: formData.get("isNewArrival") === "true",
+      isVisible: formData.get("isVisible") !== "false",
+    };
 
-    // 3. Handle Images (Multiple files)
+    // Variants
+    const variantsJson = formData.get("variants") as string;
+    const variantsData: ProductVariantInput[] = JSON.parse(variantsJson || "[]");
+
+    // Images
     const files = formData.getAll("images") as File[];
     const imagesMetaJson = formData.get("newImagesMeta") as string;
     const imagesMeta = JSON.parse(imagesMetaJson || "[]");
 
-    const uploadedImages = [];
+    const uploadedImages: { url: string; altText: string; isMain: boolean }[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (!file || file.size === 0) continue;
 
-      const blob = await put(`products/${data.slug}/${file.name}`, file, {
-        access: "public",
-        addRandomSuffix: true,
-        token: BLOB_TOKEN,
-      });
-
-      const meta = imagesMeta[i] || {};
-      uploadedImages.push({
-        url: blob.url,
-        publicId: blob.pathname,
-        altText: meta.altText || data.nameEn,
-        isMain: meta.isMain || false,
-      });
+      if (BLOB_TOKEN) {
+        const blob = await put(`nuts/${slug}/${file.name}`, file, {
+          access: "public",
+          addRandomSuffix: true,
+          token: BLOB_TOKEN,
+        });
+        const meta = imagesMeta[i] || {};
+        uploadedImages.push({
+          url: blob.url,
+          altText: meta.altText || nameAr,
+          isMain: meta.isMain || i === 0,
+        });
+      }
     }
 
-    // 4. Save to DB
     const product = await prisma.product.create({
       data: {
         ...data,
         variants: {
-          create: variantsData.map((v: ProductVariantInput) => ({
-            detailedSizeAr: v.detailedSizeAr,
-            detailedSizeEn: v.detailedSizeEn,
-            colorAr: v.colorAr,
-            colorEn: v.colorEn,
-            sku:
-              v.sku ||
-              `SKU-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-            price: Number(v.price),
+          create: variantsData.map((v, index) => ({
+            weightGram: Number(v.weightGram) || 250,
+            flavorAr: v.flavorAr || null,
+            flavorEn: v.flavorEn || null,
+            packageTypeAr: v.packageTypeAr || "كيس محكم الغلق",
+            packageTypeEn: v.packageTypeEn || "Sealed Pouch",
+            sku: v.sku || `NUT-${Date.now()}-${index}`,
+            price: Number(v.price) || 0,
             discountPrice: v.discountPrice ? Number(v.discountPrice) : null,
-            stock: Number(v.stock || 0),
-            isDefault: v.isDefault || false,
-            showPrice: v.showPrice ?? true,
+            stockQuantity: Number(v.stockQuantity) || 10,
+            isDefault: v.isDefault ?? index === 0,
+            sortOrder: index,
           })),
         },
         images: {
           create: uploadedImages.map((img, index) => ({
             url: img.url,
-            publicId: img.publicId,
             altText: img.altText,
             isMain: img.isMain,
             sortOrder: index,
           })),
         },
       },
-      include: { images: true },
+      include: { images: true, variants: true },
     });
 
     revalidatePath("/");
-    revalidatePath("/product");
+    revalidatePath("/shop");
     revalidatePath("/admin/products");
     return { success: true, data: product };
   } catch (error) {
     console.error("Error in createProduct:", error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      const target = (error.meta?.target as string[]) || [];
-      if (target.includes("slug")) {
-        return { 
-          success: false, 
-          error: "A product with this URL (slug) already exists. Please use a different one or leave it empty to auto-generate." 
-        };
-      }
-    }
-    const message = error instanceof Error ? error.message : "An unknown error occurred while creating the product.";
-    return { success: false, error: `Failed to create product: ${message}` };
-  }
-}
-
-/**
- * Upload images for an existing product
- */
-export async function uploadProductImages(
-  productId: string,
-  formData: FormData,
-) {
-  try {
-    const files = formData.getAll("images") as File[];
-
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      include: { images: true },
-    });
-
-    if (!product) {
-      console.error(`[Upload] Product ${productId} not found`);
-      return { success: false, error: "Product not found" };
-    }
-
-    let currentSortOrder = product.images.length;
-    const uploadedImages = [];
-
-    for (const file of files) {
-      if (!file || file.size === 0) continue;
-
-      const blob = await put(`products/${product.slug}/${file.name}`, file, {
-        access: "public",
-        addRandomSuffix: true,
-        token: BLOB_TOKEN,
-      });
-
-      uploadedImages.push({
-        url: blob.url,
-        publicId: blob.pathname,
-        productId: productId,
-        altText: product.nameEn,
-        isMain: product.images.length === 0 && uploadedImages.length === 0,
-        sortOrder: currentSortOrder++,
-      });
-    }
-
-    if (uploadedImages.length > 0) {
-      await prisma.productImage.createMany({
-        data: uploadedImages,
-      });
-    }
-
-    revalidatePath(`/product/${product.slug}`);
-    revalidatePath(`/admin/products/${productId}/images`);
-
-    return { success: true, data: uploadedImages };
-  } catch (error) {
-    console.error("Error in uploadProductImages:", error);
-    const message = error instanceof Error ? error.message : "Failed to upload images";
-    return { success: false, error: `Upload error: ${message}` };
-  }
-}
-
-/**
- * Fetch a single product by its ID with all relations
- */
-export async function getProductById(id: string) {
-  try {
-    const product = await prisma.product.findUnique({
-      where: { id },
-      include: {
-        images: { orderBy: { sortOrder: "asc" } },
-        variants: {
-          orderBy: { createdAt: "asc" },
-        },
-        category: true,
-      },
-    });
-
-    if (!product) return { success: false, error: "Product not found" };
-
-    // Convert Decimals to numbers for client components
-    const transformedProduct = {
-      ...product,
-      variants: product.variants.map((v) => ({
-        ...v,
-        price: Number(v.price),
-        discountPrice: v.discountPrice ? Number(v.discountPrice) : null,
-        showPrice: v.showPrice,
-      })),
-    };
-
-    return { success: true, data: transformedProduct };
-  } catch (error) {
-    console.error("Error in getProductById:", error);
-    return { success: false, error: "Failed to fetch product" };
+    return { success: false, error: "Failed to create product" };
   }
 }
 
@@ -750,436 +571,307 @@ export async function getProductById(id: string) {
  */
 export async function updateProduct(productId: string, formData: FormData) {
   try {
-    // 1. Basic & Technical Fields
+    const nameAr = formData.get("nameAr") as string;
+    const nameEn = formData.get("nameEn") as string;
+    const categoryId = formData.get("categoryId") as string;
+
     const data = {
-      nameAr: formData.get("nameAr") as string,
-      nameEn: formData.get("nameEn") as string,
-      slug: formData.get("slug") as string,
-      categoryId: formData.get("categoryId") as string,
-      descAr: formData.get("descAr") as string,
-      descEn: formData.get("descEn") as string,
-      materialAr: formData.get("materialAr") as string,
-      materialEn: formData.get("materialEn") as string,
-      madeInAr: formData.get("madeInAr") as string,
-      madeInEn: formData.get("madeInEn") as string,
-      warrantyAr: formData.get("warrantyAr") as string,
-      warrantyEn: formData.get("warrantyEn") as string,
-      installmentInfoAr: formData.get("installmentInfoAr") as string,
-      installmentInfoEn: formData.get("installmentInfoEn") as string,
-      deliveryInstallationAr: formData.get("deliveryInstallationAr") as string,
-      deliveryInstallationEn: formData.get("deliveryInstallationEn") as string,
-      recommendedSize: formData.get("recommendedSize") as string,
-      isVisible: formData.get("isVisible") === "true",
+      nameAr,
+      nameEn,
+      categoryId,
+      descAr: (formData.get("descAr") as string) || null,
+      descEn: (formData.get("descEn") as string) || null,
+      originCountryAr: (formData.get("originCountryAr") as string) || null,
+      originCountryEn: (formData.get("originCountryEn") as string) || null,
+      roastTypeAr: (formData.get("roastTypeAr") as string) || null,
+      roastTypeEn: (formData.get("roastTypeEn") as string) || null,
+      caloriesPer100g: formData.get("caloriesPer100g")
+        ? Number(formData.get("caloriesPer100g"))
+        : null,
+      proteinPer100g: formData.get("proteinPer100g")
+        ? Number(formData.get("proteinPer100g"))
+        : null,
+      isKeto: formData.get("isKeto") === "true",
+      isRaw: formData.get("isRaw") === "true",
+      isOrganic: formData.get("isOrganic") === "true",
       isFeatured: formData.get("isFeatured") === "true",
+      isBestSeller: formData.get("isBestSeller") === "true",
+      isNewArrival: formData.get("isNewArrival") === "true",
+      isVisible: formData.get("isVisible") !== "false",
     };
 
-    // Auto-generate slug if missing
-    if (!data.slug) {
-      const baseSlug = (data.nameEn || "product")
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      data.slug = `${baseSlug}-${randomSuffix}`;
-    }
-
-    // 2. Parse Variants & Images Meta
     const variantsJson = formData.get("variants") as string;
-    const variantsData = JSON.parse(variantsJson || "[]");
+    const variantsData: ProductVariantInput[] = JSON.parse(variantsJson || "[]");
 
-    const existingImagesMetaJson = formData.get("existingImagesMeta") as string;
-    const existingImagesMeta = JSON.parse(existingImagesMetaJson || "[]");
-
-    const newImagesMetaJson = formData.get("newImagesMeta") as string;
-    const newImagesMeta = JSON.parse(newImagesMetaJson || "[]");
-
-    // 3. Handle New Images if any
-    const files = formData.getAll("images") as File[];
-    const uploadedImages: {
-      url: string;
-      publicId: string;
-      altTextEn: string;
-      altTextAr: string;
-      isMain: boolean;
-      sortOrder: number;
-    }[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (!file || file.size === 0) continue;
-
-      const blob = await put(`products/${data.slug}/${file.name}`, file, {
-        access: "public",
-        addRandomSuffix: true,
-        token: BLOB_TOKEN,
+    await prisma.$transaction(async (tx) => {
+      // 1. Update basic info
+      await tx.product.update({
+        where: { id: productId },
+        data,
       });
 
-      const meta = newImagesMeta[i] || {};
-      uploadedImages.push({
-        url: blob.url,
-        publicId: blob.pathname,
-        altTextEn: meta.altTextEn || meta.altText || data.nameEn,
-        altTextAr: meta.altTextAr || meta.altText || data.nameAr,
-        isMain: meta.isMain || false,
-        sortOrder: meta.sortOrder || 0,
-      });
-    }
+      // 2. Sync variants
+      const existingVariantIds = variantsData
+        .filter((v) => v.id)
+        .map((v) => v.id as string);
 
-    // 4. Perform Transaction for Data Consistency
-    const result = await prisma.$transaction(
-      async (tx) => {
-        // A. Update Basic Info
-        const product = await tx.product.update({
-          where: { id: productId },
-          data: {
-            ...data,
-            // B. Update Existing Images Meta
-            images: {
-              update: existingImagesMeta.map(
-                (img: {
-                  id: string;
-                  altText?: string;
-                  isMain?: boolean;
-                  sortOrder?: number;
-                }) => ({
-                  where: { id: img.id },
-                  data: {
-                    altText: img.altText,
-                    isMain: img.isMain,
-                    sortOrder: img.sortOrder,
-                  },
-                }),
-              ),
-              // C. Add New Images
-              create: uploadedImages.map((img, index) => ({
-                url: img.url,
-                publicId: img.publicId,
-                altText: img.altTextEn,
-                isMain: img.isMain,
-                sortOrder: existingImagesMeta.length + index,
-              })),
+      await tx.productVariant.deleteMany({
+        where: {
+          productId,
+          id: { notIn: existingVariantIds },
+        },
+      });
+
+      for (let i = 0; i < variantsData.length; i++) {
+        const v = variantsData[i];
+        const payload = {
+          weightGram: Number(v.weightGram) || 250,
+          flavorAr: v.flavorAr || null,
+          flavorEn: v.flavorEn || null,
+          packageTypeAr: v.packageTypeAr || "كيس محكم الغلق",
+          packageTypeEn: v.packageTypeEn || "Sealed Pouch",
+          sku: v.sku || `NUT-${Date.now()}-${i}`,
+          price: Number(v.price) || 0,
+          discountPrice: v.discountPrice ? Number(v.discountPrice) : null,
+          stockQuantity: Number(v.stockQuantity) || 10,
+          isDefault: v.isDefault ?? i === 0,
+          sortOrder: i,
+        };
+
+        if (v.id) {
+          await tx.productVariant.update({
+            where: { id: v.id },
+            data: payload,
+          });
+        } else {
+          await tx.productVariant.create({
+            data: {
+              ...payload,
+              productId,
             },
-          },
-        });
-
-        // D. Sync Variants
-        const variantIds = variantsData
-          .filter((v: ProductVariantInput) => v.id)
-          .map((v: ProductVariantInput) => v.id);
-
-        // Delete removed variants
-        await tx.productVariant.deleteMany({
-          where: {
-            productId,
-            id: { notIn: variantIds },
-          },
-        });
-
-        // Upsert current variants
-        const variantPromises = (variantsData as ProductVariantInput[]).map(
-          (v) => {
-            const variantPayload = {
-              detailedSizeAr: v.detailedSizeAr,
-              detailedSizeEn: v.detailedSizeEn,
-              colorAr: v.colorAr,
-              colorEn: v.colorEn,
-              sku:
-                v.sku ||
-                `SKU-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-              price: Number(v.price),
-              discountPrice: v.discountPrice ? Number(v.discountPrice) : null,
-              stock: Number(v.stock || 0),
-              isDefault: v.isDefault || false,
-              showPrice: v.showPrice ?? true,
-            };
-
-            if (v.id) {
-              return tx.productVariant.update({
-                where: { id: v.id },
-                data: variantPayload,
-              });
-            } else {
-              return tx.productVariant.create({
-                data: {
-                  ...variantPayload,
-                  productId,
-                },
-              });
-            }
-          },
-        );
-
-        await Promise.all(variantPromises);
-
-        return product;
-      },
-      {
-        timeout: 10000, // Wait up to 10s for individual ops
-        maxWait: 5000, // Wait up to 5s to get a connection
-      },
-    );
+          });
+        }
+      }
+    });
 
     revalidatePath("/");
+    revalidatePath("/shop");
+    revalidatePath(`/product`);
     revalidatePath("/admin/products");
-    revalidatePath(`/product/${result.slug}`);
-
-    return { success: true, data: result };
+    return { success: true };
   } catch (error) {
     console.error("Error in updateProduct:", error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      const target = (error.meta?.target as string[]) || [];
-      if (target.includes("slug")) {
-        return { 
-          success: false, 
-          error: "A product with this URL (slug) already exists. Please use a different one." 
-        };
-      }
-    }
-    const message = error instanceof Error ? error.message : "An unknown error occurred while updating the product.";
-    return { success: false, error: `Failed to update product: ${message}` };
+    return { success: false, error: "Failed to update product" };
   }
 }
 
 /**
- * Delete a product image from DB and Cloudinary
+ * Delete product (Soft delete)
  */
-export async function deleteProductImage(imageId: string) {
-  try {
-    const image = await prisma.productImage.findUnique({
-      where: { id: imageId },
-      include: { product: true },
-    });
-
-    if (!image) return { success: false, error: "Image not found" };
-
-    if (image.publicId && image.url.includes("blob.vercel-storage.com")) {
-      await del(image.url, { token: BLOB_TOKEN });
-    }
-
-    await prisma.productImage.delete({
-      where: { id: imageId },
-    });
-
-    revalidatePath(`/product/${image.product.slug}`);
-    revalidatePath("/admin/products");
-    return { success: true };
-  } catch (error) {
-    console.error("Error in deleteProductImage:", error);
-    return { success: false, error: "Failed to delete image" };
-  }
-}
-
-// ---------------------------------------------------------
-// NEW: Dashboard Quick Actions
-// ---------------------------------------------------------
-
-/**
- * Toggle product visibility status
- */
-export async function toggleProductStatus(
-  productId: string,
-  isVisible: boolean,
-) {
+export async function deleteProduct(id: string) {
   try {
     await prisma.product.update({
-      where: { id: productId },
-      data: { isVisible },
+      where: { id },
+      data: { isDeleted: true, isVisible: false },
     });
+
+    revalidatePath("/shop");
     revalidatePath("/admin/products");
     return { success: true };
   } catch (error) {
-    console.error("Error toggling product status:", error);
-    const message = error instanceof Error ? error.message : "Database update failed";
-    return { success: false, error: `Failed to update status: ${message}` };
+    console.error("Error in deleteProduct:", error);
+    return { success: false, error: "Failed to delete product" };
   }
 }
 
 /**
- * Toggle product featured status
+ * Duplicate a product
  */
-export async function toggleProductFeatured(
-  productId: string,
-  isFeatured: boolean,
-) {
+export async function duplicateProduct(id: string) {
   try {
-    await prisma.product.update({
-      where: { id: productId },
-      data: { isFeatured },
-    });
-    revalidatePath("/admin/products");
-    return { success: true };
-  } catch (error) {
-    console.error("Error toggling product featured:", error);
-    return { success: false, error: "Failed to update featured status" };
-  }
-}
-
-/**
- * Duplicate a product (Variants included, Images excluded based on decision)
- */
-export async function duplicateProduct(productId: string) {
-  try {
-    // 1. Fetch original product with variants
     const original = await prisma.product.findUnique({
-      where: { id: productId },
-      include: { variants: true },
+      where: { id },
+      include: { variants: true, images: true },
     });
 
     if (!original) return { success: false, error: "Product not found" };
 
-    // 2. Prepare Variant Data (Excluding IDs)
-    const variantsData = original.variants.map((v) => ({
-      sizeNameAr: v.sizeNameAr,
-      sizeNameEn: v.sizeNameEn,
-      detailedSizeAr: v.detailedSizeAr,
-      detailedSizeEn: v.detailedSizeEn,
-      colorAr: v.colorAr,
-      colorEn: v.colorEn,
-      price: v.price,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      discountPrice: (v as any).discountPrice,
-      stock: v.stock,
-      sku: `${v.sku}-COPY-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-      isDefault: v.isDefault,
-      sortOrder: v.sortOrder,
-      showPrice: v.showPrice,
-    }));
+    const newSlug = `${original.slug}-copy-${Date.now()}`;
 
-    // 3. Create new product
-    const newProduct = await prisma.product.create({
+    const duplicated = await prisma.product.create({
       data: {
-        nameEn: `${original.nameEn} (Copy)`,
         nameAr: `${original.nameAr} (نسخة)`,
-        slug: `${original.slug}-copy-${Date.now()}`,
-        descEn: original.descEn,
+        nameEn: `${original.nameEn} (Copy)`,
+        slug: newSlug,
         descAr: original.descAr,
+        descEn: original.descEn,
         categoryId: original.categoryId,
-        isVisible: false, // Default to hidden
+        originCountryAr: original.originCountryAr,
+        originCountryEn: original.originCountryEn,
+        roastTypeAr: original.roastTypeAr,
+        roastTypeEn: original.roastTypeEn,
+        caloriesPer100g: original.caloriesPer100g,
+        proteinPer100g: original.proteinPer100g,
+        isKeto: original.isKeto,
+        isRaw: original.isRaw,
+        isOrganic: original.isOrganic,
         isFeatured: false,
-
-        // Copy technical specs
-        materialAr: original.materialAr,
-        materialEn: original.materialEn,
-        madeInAr: original.madeInAr,
-        madeInEn: original.madeInEn,
-        warrantyAr: original.warrantyAr,
-        warrantyEn: original.warrantyEn,
-        installmentInfoAr: original.installmentInfoAr,
-        installmentInfoEn: original.installmentInfoEn,
-        deliveryInstallationAr: original.deliveryInstallationAr,
-        deliveryInstallationEn: original.deliveryInstallationEn,
-        recommendedSize: original.recommendedSize,
-
-        // Copy variants
+        isVisible: false,
         variants: {
-          create: variantsData,
+          create: original.variants.map((v) => ({
+            weightGram: v.weightGram,
+            flavorAr: v.flavorAr,
+            flavorEn: v.flavorEn,
+            packageTypeAr: v.packageTypeAr,
+            packageTypeEn: v.packageTypeEn,
+            price: v.price,
+            discountPrice: v.discountPrice,
+            stockQuantity: v.stockQuantity,
+            isDefault: v.isDefault,
+            sku: `NUT-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          })),
+        },
+        images: {
+          create: original.images.map((img) => ({
+            url: img.url,
+            altText: img.altText,
+            isMain: img.isMain,
+            sortOrder: img.sortOrder,
+          })),
         },
       },
     });
 
     revalidatePath("/admin/products");
-    return { success: true, data: newProduct };
+    return { success: true, data: duplicated };
   } catch (error) {
-    console.error("Error duplicating product:", error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      const target = (error.meta?.target as string[]) || [];
-      if (target.includes("slug")) {
-        return { 
-          success: false, 
-          error: "A product with this URL (slug) already exists. Duplicate failed due to slug collision." 
-        };
-      }
-    }
-    const message = error instanceof Error ? error.message : "Duplicate failed";
-    return { success: false, error: `Failed to duplicate product: ${message}` };
+    console.error("Error in duplicateProduct:", error);
+    return { success: false, error: "Failed to duplicate product" };
   }
 }
+
 /**
- * Set an image as the main image for a product
+ * Toggle visibility of a product
  */
-export async function setProductMainImage(imageId: string, productId: string) {
+export async function toggleProductStatus(id: string, forceVisible?: boolean) {
   try {
-    // Start a transaction to ensure data consistency
+    const product = await prisma.product.findUnique({
+      where: { id },
+      select: { isVisible: true },
+    });
+    if (!product) return { success: false, error: "Product not found" };
+
+    const newStatus = typeof forceVisible === "boolean" ? forceVisible : !product.isVisible;
+    const updated = await prisma.product.update({
+      where: { id },
+      data: { isVisible: newStatus },
+    });
+
+    revalidatePath("/admin/products");
+    revalidatePath("/shop");
+    return { success: true, data: updated };
+  } catch (error) {
+    console.error("Error toggling product status:", error);
+    return { success: false, error: "Failed to toggle status" };
+  }
+}
+
+/**
+ * Toggle featured flag of a product
+ */
+export async function toggleProductFeatured(id: string, forceFeatured?: boolean) {
+  try {
+    const product = await prisma.product.findUnique({
+      where: { id },
+      select: { isFeatured: true },
+    });
+    if (!product) return { success: false, error: "Product not found" };
+
+    const newFeatured = typeof forceFeatured === "boolean" ? forceFeatured : !product.isFeatured;
+    const updated = await prisma.product.update({
+      where: { id },
+      data: { isFeatured: newFeatured },
+    });
+
+    revalidatePath("/admin/products");
+    revalidatePath("/");
+    return { success: true, data: updated };
+  } catch (error) {
+    console.error("Error toggling product featured:", error);
+    return { success: false, error: "Failed to toggle featured" };
+  }
+}
+
+/**
+ * Delete a product image
+ */
+export async function deleteProductImage(imageId: string) {
+  try {
+    const image = await prisma.productImage.delete({
+      where: { id: imageId },
+    });
+    return { success: true, data: image };
+  } catch (error) {
+    console.error("Error deleting product image:", error);
+    return { success: false, error: "Failed to delete image" };
+  }
+}
+
+/**
+ * Set main product image
+ */
+export async function setProductMainImage(productId: string, imageId: string) {
+  try {
     await prisma.$transaction([
-      // 1. Set all images for this product to isMain: false
       prisma.productImage.updateMany({
         where: { productId },
         data: { isMain: false },
       }),
-      // 2. Set the selected image to isMain: true
       prisma.productImage.update({
         where: { id: imageId },
         data: { isMain: true },
       }),
     ]);
-
-    revalidatePath(`/product`);
-    revalidatePath(`/admin/products`);
-    revalidatePath(`/admin/products/${productId}/images`);
     return { success: true };
   } catch (error) {
-    console.error("Error setting main product image:", error);
-    return { success: false, error: "Failed to set main product image" };
+    console.error("Error setting main image:", error);
+    return { success: false, error: "Failed to set main image" };
   }
 }
 
 /**
- * Delete a product completely from the database and storage
+ * Upload multiple images for a product
  */
-export async function deleteProduct(productId: string) {
+export async function uploadProductImages(productId: string, formData: FormData) {
   try {
-    // 1. Fetch product with images to handle storage cleanup
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-      include: { 
-        images: true,
-      },
-    });
+    const files = formData.getAll("files") as File[];
+    const uploadedImages = [];
 
-    if (!product) return { success: false, error: "Product not found" };
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file || !(file instanceof File) || file.size === 0) continue;
 
-    // 2. Delete images from Vercel Blob
-    for (const image of product.images) {
-      if (image.url && (image.url.includes("blob.vercel-storage.com") || image.publicId)) {
-        try {
-          // Use del() from @vercel/blob
-          await del(image.url, { token: BLOB_TOKEN });
-        } catch (err) {
-          console.error(`Failed to delete blob image: ${image.url}`, err);
-          // Continue with other images and DB deletion even if one blob delete fails
-        }
-      }
+      const blob = await put(`products/${Date.now()}-${file.name}`, file, {
+        access: "public",
+        token: BLOB_TOKEN,
+      });
+
+      const img = await prisma.productImage.create({
+        data: {
+          productId,
+          url: blob.url,
+          isMain: i === 0,
+          sortOrder: i,
+        },
+      });
+      uploadedImages.push(img);
     }
 
-    // 3. Database Deletion in Transaction
-    await prisma.$transaction(async (tx) => {
-      // A. Manual cleanup for relations without Cascade Delete (if any)
-      // CartItem has NoAction on Product in the schema, so we should clean it up
-      await tx.cartItem.deleteMany({
-        where: { productId },
-      });
-
-      // B. Delete the main product record 
-      // This will cascade to ProductImage, ProductVariant, WhatsAppOrder, Review, and ProductCollectionItem 
-      // as they are marked with onDelete: Cascade in the Prisma schema.
-      await tx.product.delete({
-        where: { id: productId },
-      });
-    }, {
-      timeout: 10000,
-      maxWait: 5000,
-    });
-
-    // 4. Revalidate cache
-    revalidatePath("/");
-    revalidatePath("/product");
-    revalidatePath("/admin/products");
-    
-    return { success: true };
+    revalidatePath(`/admin/products/${productId}/images`);
+    return { success: true, data: uploadedImages };
   } catch (error) {
-    console.error("Error deleting product:", error);
-    const message = error instanceof Error ? error.message : "Database deletion failed";
-    return { success: false, error: `Failed to delete product: ${message}` };
+    console.error("Error uploading product images:", error);
+    return { success: false, error: "Failed to upload images" };
   }
 }
+

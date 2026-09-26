@@ -6,7 +6,7 @@ import { GripVertical, Eye, EyeOff, Edit2, Trash2, Video, Image as ImageIcon } f
 import { Button } from "@/components/ui/button";
 import NextLink from "next/link";
 import { cn } from "@/lib/utils";
-import { MediaType } from "@prisma/client";
+import { MediaType } from "@/actions/portfolio";
 
 interface PortfolioItem {
   id: string;

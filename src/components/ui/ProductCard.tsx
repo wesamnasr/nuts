@@ -56,7 +56,7 @@ export function ProductCard({ product, badge, showFlashSale, flashSaleEndDate }:
       name: isAr ? product.nameAr : product.nameEn,
       price: product.discountPrice || product.price,
       image: product.image,
-      color: isAr ? product.colorAr : product.colorEn,
+      color: isAr ? (product.flavorAr || product.roastTypeAr || "") : (product.flavorEn || product.roastTypeEn || ""),
       size: isAr ? product.sizeAr : product.sizeEn,
       quantity: 1,
       slug: product.slug,
@@ -163,8 +163,20 @@ export function ProductCard({ product, badge, showFlashSale, flashSaleEndDate }:
       </Link>
 
       {/* Info */}
-      <Link href={`/product/${product.slug}`} className="p-2 sm:p-5 flex flex-col flex-1 group-hover:bg-neutral-50/50 transition-colors">
-        <h3 className="font-bold text-sm sm:text-lg mb-1.5 sm:mb-2 line-clamp-1 group-hover:text-primary transition-colors tracking-tight">
+      <Link href={`/product/${product.slug}`} className="p-2.5 sm:p-5 flex flex-col flex-1 group-hover:bg-neutral-50/50 transition-colors">
+        <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+          {product.sizeAr && (
+            <span className="text-[10px] sm:text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200/60 px-2 py-0.5 rounded-full font-cairo">
+              {isAr ? product.sizeAr : product.sizeEn}
+            </span>
+          )}
+          {product.roastTypeAr && (
+            <span className="text-[10px] sm:text-[11px] text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full font-cairo">
+              {isAr ? product.roastTypeAr : product.roastTypeEn}
+            </span>
+          )}
+        </div>
+        <h3 className="font-bold text-sm sm:text-base mb-1.5 sm:mb-2 line-clamp-1 group-hover:text-primary transition-colors tracking-tight font-cairo">
           {isAr ? product.nameAr : product.nameEn}
         </h3>
         <div className="mt-auto flex items-center justify-between gap-2">

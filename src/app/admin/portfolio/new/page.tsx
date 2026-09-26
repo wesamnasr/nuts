@@ -1,10 +1,5 @@
-import { PortfolioCategoryForm } from "@/components/admin/PortfolioCategoryForm";
+import { redirect } from "next/navigation";
 
-export default function NewPortfolioCategoryPage() {
-  return (
-    <div className="max-w-4xl mx-auto pb-12">
-      <h1 className="text-2xl font-bold mb-8">Add New Portfolio Category</h1>
-      <PortfolioCategoryForm />
-    </div>
-  );
+export default function NewPortfolioPage() {
+  redirect("/admin/products");
 }

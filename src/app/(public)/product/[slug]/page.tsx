@@ -104,9 +104,9 @@ export default async function ProductPage({
     offers: {
       "@type": "Offer",
       price: price.toString(),
-      priceCurrency: "SAR",
+      priceCurrency: "EGP",
       availability:
-        defaultVariant?.stock > 0
+        Number((defaultVariant as any)?.stockQuantity ?? (defaultVariant as any)?.stock ?? 1) > 0
           ? "https://schema.org/InStock"
           : "https://schema.org/OutOfStock",
       url: `${process.env.NEXT_PUBLIC_SITE_URL || ""}/product/${slug}`,

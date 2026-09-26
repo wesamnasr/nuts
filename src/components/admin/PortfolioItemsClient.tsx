@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/i18n/LocaleContext";
 import { cn } from "@/lib/utils";
-import { MediaType } from "@prisma/client";
+import { MediaType } from "@/actions/portfolio";
 import { deletePortfolioItem } from "@/actions/portfolio";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";

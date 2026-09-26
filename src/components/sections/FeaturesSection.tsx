@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale } from "@/i18n/LocaleContext";
-import { Award, Truck, ShieldCheck } from "lucide-react";
+import { Award, Truck, ShieldCheck, Flame, Sparkles } from "lucide-react";
 import Image from "next/image";
 
 type Feature = {
@@ -14,40 +14,54 @@ type Feature = {
   sortOrder?: number;
 };
 
+const iconMap: Record<string, React.ReactNode> = {
+  Flame: <Flame className="w-10 h-10 text-amber-600" />,
+  ShieldCheck: <ShieldCheck className="w-10 h-10 text-amber-600" />,
+  Truck: <Truck className="w-10 h-10 text-amber-600" />,
+  Sparkles: <Sparkles className="w-10 h-10 text-amber-600" />,
+  Award: <Award className="w-10 h-10 text-amber-600" />,
+};
+
+function renderFeatureIcon(icon?: string) {
+  if (!icon) return <Award className="w-10 h-10 text-amber-600" />;
+  if (iconMap[icon]) return iconMap[icon];
+  if (icon.startsWith("http://") || icon.startsWith("https://") || icon.startsWith("/")) {
+    return (
+      <div className="relative w-10 h-10">
+        <Image src={icon} alt="" fill className="object-contain" />
+      </div>
+    );
+  }
+  return <Award className="w-10 h-10 text-amber-600" />;
+}
+
 export function FeaturesSection({ customFeatures = [] }: { customFeatures?: Feature[] }) {
-  const { t, locale } = useLocale();
+  const { locale } = useLocale();
+
+  const isAr = locale === "ar";
 
   const defaultFeatures = [
     {
-      icon: <Award className="w-10 h-10 text-primary" />,
-      title: t("qualityTitle"),
-      desc: t("qualityDesc"),
+      icon: <Award className="w-10 h-10 text-amber-600" />,
+      title: isAr ? "جودة استثنائية وطازجة" : "Exceptional Fresh Quality",
+      desc: isAr ? "ننتقي أجود الحبات من أفضل المزارع العالمية مع تحميص هوائي طازج يومياً بدون زيوت مهدرجة." : "We source the finest grades from top global farms with daily fresh air-roasting.",
     },
     {
-      icon: <Truck className="w-10 h-10 text-primary" />,
-      title: t("deliveryTitle"),
-      desc: t("deliveryDesc"),
+      icon: <Truck className="w-10 h-10 text-amber-600" />,
+      title: isAr ? "شحن سريع لجميع محافظات مصر" : "Fast Delivery Across Egypt",
+      desc: isAr ? "توصيل سريع لباب منزلك في القاهرة، الجيزة، الإسكندرية وجميع محافظات الجمهورية." : "Fast delivery directly to your doorstep in Cairo, Giza, Alexandria and all Egypt governorates.",
     },
     {
-      icon: <ShieldCheck className="w-10 h-10 text-primary" />,
-      title: t("warrantyTitle"),
-      desc: t("warrantyDesc"),
+      icon: <ShieldCheck className="w-10 h-10 text-amber-600" />,
+      title: isAr ? "تغليف مفرغ من الهواء وضمان القرمشة" : "Vacuum Sealed & Crunch Guarantee",
+      desc: isAr ? "عبوات زيبر محكمة الغلق ومفرغة من الهواء للحفاظ على النكهة والقرمشة الفائقة." : "Airtight vacuum zipper pouches to ensure peak crunchiness and aroma down to the last nut.",
     },
   ];
 
   // Map custom features to match the structure we need
   const featuresToDisplay = customFeatures.length > 0
     ? customFeatures.map(f => ({
-      icon: f.icon ? (
-        <div className="relative w-10 h-10">
-          <Image
-            src={f.icon}
-            alt={locale === 'ar' ? f.titleAr : f.titleEn}
-            fill
-            className="object-contain"
-          />
-        </div>
-      ) : <Award className="w-10 h-10 text-primary" />, // Fallback icon
+      icon: renderFeatureIcon(f.icon),
       title: locale === 'ar' ? f.titleAr : f.titleEn,
       desc: locale === 'ar' ? f.descAr : f.descEn
     }))

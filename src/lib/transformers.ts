@@ -9,20 +9,35 @@ export type StorefrontProduct = {
   price: number;
   discountPrice: number | null;
   discountPercent: number;
-  colorAr: string;
-  colorEn: string;
-  sizeAr: string;
-  sizeEn: string;
+  weightGram: number;
+  flavorAr: string;
+  flavorEn: string;
+  packageTypeAr: string;
+  packageTypeEn: string;
+  // UI helper mappings
+  sizeAr: string; // e.g. "250 جم"
+  sizeEn: string; // e.g. "250g"
+  originCountryAr: string;
+  originCountryEn: string;
+  roastTypeAr: string;
+  roastTypeEn: string;
+  caloriesPer100g: number | null;
+  proteinPer100g: number | null;
+  isKeto: boolean;
+  isRaw: boolean;
+  isOrganic: boolean;
   categoryId: string;
   category: { id: string; nameAr: string; nameEn: string; slug: string };
   isFeatured: boolean;
+  isBestSeller: boolean;
+  isNewArrival: boolean;
   isOnSale: boolean;
   startingPrice: number;
   showPrice: boolean;
   isVisible: boolean;
   stock: number;
   images: Array<{ url: string; altText: string | null }>;
-  _count: { images: number; whatsAppOrders: number };
+  _count: { images: number; orderItems?: number };
   createdAt: Date;
   updatedAt: Date;
 };
@@ -32,20 +47,31 @@ export interface RawProduct {
   nameAr: string;
   nameEn: string;
   slug: string;
+  originCountryAr?: string | null;
+  originCountryEn?: string | null;
+  roastTypeAr?: string | null;
+  roastTypeEn?: string | null;
+  caloriesPer100g?: number | null;
+  proteinPer100g?: any;
+  isKeto?: boolean;
+  isRaw?: boolean;
+  isOrganic?: boolean;
+  isFeatured?: boolean;
+  isBestSeller?: boolean;
+  isNewArrival?: boolean;
+  isVisible?: boolean;
   variants?: {
     id: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     price: any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    discountPrice: any;
-    colorAr?: string | null;
-    colorEn?: string | null;
-    sizeNameAr?: string | null;
-    sizeAr?: string | null;
-    sizeNameEn?: string | null;
-    sizeEn?: string | null;
-    showPrice?: boolean;
+    discountPrice?: any;
+    weightGram?: number;
+    flavorAr?: string | null;
+    flavorEn?: string | null;
+    packageTypeAr?: string | null;
+    packageTypeEn?: string | null;
+    stockQuantity?: number;
     stock?: number;
+    isDefault?: boolean;
   }[];
   images?: {
     url: string;
@@ -58,9 +84,7 @@ export interface RawProduct {
     nameEn: string;
     slug: string;
   };
-  isFeatured?: boolean;
-  isVisible?: boolean;
-  _count?: { images: number; whatsAppOrders: number };
+  _count?: { images: number; orderItems?: number; whatsAppOrders?: number };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -69,7 +93,8 @@ export interface RawProduct {
  * Standardizes a product object from DB into the format expected by storefront components.
  */
 export function transformProduct(p: RawProduct): StorefrontProduct {
-  const variant = p.variants?.[0];
+  // Find default variant or first variant
+  const variant = p.variants?.find((v) => v.isDefault) || p.variants?.[0];
   const price = Number(variant?.price) || 0;
   const discountPrice = variant?.discountPrice
     ? Number(variant.discountPrice)
@@ -81,34 +106,61 @@ export function transformProduct(p: RawProduct): StorefrontProduct {
     ? Math.round(((price - discountPrice!) / price) * 100)
     : 0;
 
+  const weightGram = variant?.weightGram || 250;
+  const weightTextAr =
+    weightGram >= 1000
+      ? `${weightGram / 1000} كجم`
+      : `${weightGram} جم`;
+  const weightTextEn =
+    weightGram >= 1000
+      ? `${weightGram / 1000}kg`
+      : `${weightGram}g`;
+
   return {
     id: p.id,
     variantId: variant?.id || "",
     nameAr: p.nameAr,
     nameEn: p.nameEn,
     slug: p.slug,
-    image: p.images?.[0]?.url || "https://placehold.co/800x600?text=No+Image",
+    image: p.images?.[0]?.url || "https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=800&q=80",
     altText: p.images?.[0]?.altText || p.nameEn,
     price,
     discountPrice: hasDiscount ? discountPrice : null,
     discountPercent,
-    colorAr: variant?.colorAr || "",
-    colorEn: variant?.colorEn || "",
-    sizeAr: variant?.sizeNameAr || variant?.sizeAr || "",
-    sizeEn: variant?.sizeNameEn || variant?.sizeEn || "",
+    weightGram,
+    flavorAr: variant?.flavorAr || "",
+    flavorEn: variant?.flavorEn || "",
+    packageTypeAr: variant?.packageTypeAr || "",
+    packageTypeEn: variant?.packageTypeEn || "",
+    sizeAr: weightTextAr,
+    sizeEn: weightTextEn,
+    originCountryAr: p.originCountryAr || "",
+    originCountryEn: p.originCountryEn || "",
+    roastTypeAr: p.roastTypeAr || "",
+    roastTypeEn: p.roastTypeEn || "",
+    caloriesPer100g: p.caloriesPer100g ?? null,
+    proteinPer100g: p.proteinPer100g ? Number(p.proteinPer100g) : null,
+    isKeto: p.isKeto ?? false,
+    isRaw: p.isRaw ?? false,
+    isOrganic: p.isOrganic ?? false,
     categoryId: p.categoryId,
     category: p.category || { id: "", nameAr: "", nameEn: "", slug: "" },
     isFeatured: p.isFeatured || false,
+    isBestSeller: p.isBestSeller || false,
+    isNewArrival: p.isNewArrival || false,
     isOnSale: hasDiscount,
     startingPrice: discountPrice || price,
-    showPrice: variant?.showPrice ?? true,
-    stock: variant?.stock ?? 0,
-    isVisible: p.isVisible || false,
+    showPrice: true,
+    stock: variant?.stockQuantity ?? variant?.stock ?? 10,
+    isVisible: p.isVisible ?? true,
     images: (p.images || []).map((img) => ({
       url: img.url,
       altText: img.altText ?? null,
     })),
-    _count: p._count || { images: 0, whatsAppOrders: 0 },
+    _count: {
+      images: p._count?.images ?? p.images?.length ?? 0,
+      orderItems: p._count?.orderItems ?? 0,
+    },
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   };

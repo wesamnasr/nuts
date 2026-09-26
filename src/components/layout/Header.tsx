@@ -72,13 +72,13 @@ export function Header({ storeName, salesNumber, logoUrl }: { storeName?: { en: 
                 <Image src={logoUrl} alt="Store Logo" fill className="object-contain p-1" />
               </div>
             )}
-            <span className="text-lg sm:text-xl md:text-2xl font-black tracking-tight text-primary uppercase">
-              {locale === "ar" ? (storeName?.ar || "أثاث فاخر") : (storeName?.en || "FURNITURE")}
+            <span className="text-lg sm:text-xl md:text-2xl font-black tracking-tight text-primary uppercase font-cairo">
+              {locale === "ar" ? (storeName?.ar || "محامص نَتس") : (storeName?.en || "NUTS ROASTERY")}
             </span>
           </Link>
 
           {/* Desktop Nav */}
-          <nav className="hidden lg:flex gap-8 font-semibold text-sm tracking-wide uppercase">
+          <nav className="hidden lg:flex gap-8 font-bold text-sm tracking-wide uppercase font-cairo">
             <Link href="/" className="text-secondary hover:text-primary transition-colors">
               {t("home")}
             </Link>
@@ -87,9 +87,6 @@ export function Header({ storeName, salesNumber, logoUrl }: { storeName?: { en: 
             </Link>
             <Link href="/about" className="text-secondary hover:text-primary transition-colors">
               {t("about")}
-            </Link>
-            <Link href="/works" className="text-secondary hover:text-primary transition-colors">
-              {t("our_works")}
             </Link>
           </nav>
 
@@ -139,16 +136,16 @@ export function Header({ storeName, salesNumber, logoUrl }: { storeName?: { en: 
                   </SheetTrigger>
                   <SheetContent side={locale === "ar" ? "right" : "left"} className="w-[300px] sm:w-[400px] border-none p-0 flex flex-col bg-white">
                     <div className="p-6 border-b border-neutral-100 flex items-center justify-between">
-                      <SheetTitle className="text-xl font-black text-primary uppercase">
-                        {locale === "ar" ? (storeName?.ar || "أثاث فاخر") : (storeName?.en || "FURNITURE")}
+                      <SheetTitle className="text-xl font-black text-primary uppercase font-cairo">
+                        {locale === "ar" ? (storeName?.ar || "محامص نَتس") : (storeName?.en || "NUTS ROASTERY")}
                       </SheetTitle>
                     </div>
-                    <nav className="flex flex-col p-6 gap-2">
+                    <nav className="flex flex-col p-6 gap-2 font-cairo">
                       {[
                         { href: "/", label: t("home") },
                         { href: "/shop", label: t("shop") },
                         { href: "/about", label: t("about") },
-                        { href: "/works", label: t("our_works") },
+                        { href: "/checkout", label: locale === "ar" ? "إتمام الطلب" : "Checkout" },
                       ].map((item) => (
                         <Link
                           key={item.href}

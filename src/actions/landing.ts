@@ -1,17 +1,18 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { revalidatePath } from "next/cache";
-import { put, del } from "@vercel/blob";
 import { Prisma } from "@prisma/client";
+import { revalidatePath } from "next/cache";
+import { put } from "@vercel/blob";
+import { BLOB_TOKEN } from "@/lib/blob";
 
 export type LandingPageConfig = {
-  id: string;
+  id?: string;
   heroTitleAr: string;
   heroTitleEn: string;
   heroSubtitleAr: string;
   heroSubtitleEn: string;
-  heroImage: string;
+  heroImage: string | null;
   heroButtonTextAr: string;
   heroButtonTextEn: string;
   heroLink: string;
@@ -47,16 +48,14 @@ const DEFAULT_SECTIONS_ORDER = [
   "newsletter",
 ];
 
-const DEFAULT_CONFIG = {
-  heroTitleAr: "اكتشف سحر الأثاث الكلاسيكي",
-  heroTitleEn: "Rediscover the Charm of Vintage Living",
-  heroSubtitleAr: "قطع مصنوعة يدوياً تضفي الدفء والأناقة على منزلك العصري.",
-  heroSubtitleEn:
-    "Handcrafted pieces that bring warmth and elegance to your modern home.",
-  heroImage:
-    "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?auto=format&fit=crop&w=2000&q=80",
-  heroButtonTextAr: "تسوق المجموعة",
-  heroButtonTextEn: "Shop Collection",
+const DEFAULT_CONFIG: LandingPageConfig = {
+  heroTitleAr: "أجود أنواع المكسرات الفاخرة والطازجة",
+  heroTitleEn: "Premium Fresh & Roasted Gourmet Nuts",
+  heroSubtitleAr: "محمصة بعناية يومياً، بجودة طبيعية 100% ونكهات فريدة للضيافة والأسرة",
+  heroSubtitleEn: "Carefully roasted daily with 100% natural quality and unique flavors",
+  heroImage: "https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=2000&q=80",
+  heroButtonTextAr: "تسوق الآن",
+  heroButtonTextEn: "Shop Now",
   heroLink: "/shop",
 
   showHero: true,
@@ -74,8 +73,27 @@ const DEFAULT_CONFIG = {
   manualBestSellerIds: [],
   manualFlashSaleIds: [],
   manualFlashSaleId: null,
-  flashSaleDiscount: 0,
+  flashSaleDiscount: 15,
   flashSaleEndDate: null,
+};
+
+const DB_DEFAULT_CREATE: Prisma.LandingPageConfigCreateInput = {
+  heroTitleAr: DEFAULT_CONFIG.heroTitleAr,
+  heroTitleEn: DEFAULT_CONFIG.heroTitleEn,
+  heroSubtitleAr: DEFAULT_CONFIG.heroSubtitleAr,
+  heroSubtitleEn: DEFAULT_CONFIG.heroSubtitleEn,
+  heroImage: DEFAULT_CONFIG.heroImage,
+  heroButtonTextAr: DEFAULT_CONFIG.heroButtonTextAr,
+  heroButtonTextEn: DEFAULT_CONFIG.heroButtonTextEn,
+  heroLink: DEFAULT_CONFIG.heroLink,
+  showHero: DEFAULT_CONFIG.showHero,
+  showFeatures: DEFAULT_CONFIG.showFeatures,
+  showNewArrivals: DEFAULT_CONFIG.showNewArrivals,
+  showBestSellers: DEFAULT_CONFIG.showBestSellers,
+  showFlashSales: DEFAULT_CONFIG.showFlashSales,
+  showCategories: DEFAULT_CONFIG.showCategories,
+  showTestimonials: DEFAULT_CONFIG.showTestimonials,
+  flashSaleDiscount: DEFAULT_CONFIG.flashSaleDiscount,
 };
 
 export async function getLandingConfig(): Promise<LandingPageConfig> {
@@ -85,128 +103,110 @@ export async function getLandingConfig(): Promise<LandingPageConfig> {
     });
 
     if (configs.length === 0) {
-      // Create default config if none exists
       const created = await prisma.landingPageConfig.create({
-        data: DEFAULT_CONFIG as unknown as Prisma.LandingPageConfigCreateInput,
+        data: DB_DEFAULT_CREATE,
       });
-      return created as unknown as LandingPageConfig;
+      return {
+        ...DEFAULT_CONFIG,
+        ...created,
+        sectionsOrder: DEFAULT_SECTIONS_ORDER,
+        manualNewArrivalIds: [],
+        manualBestSellerIds: [],
+        manualFlashSaleIds: [],
+      } as LandingPageConfig;
     }
 
-    // Cleanup: If more than one exists, keep the latest and delete others
-    if (configs.length > 1) {
-      const idsToDelete = configs.slice(1).map((c) => c.id);
-      await prisma.landingPageConfig.deleteMany({
-        where: { id: { in: idsToDelete } },
-      });
-    }
-
-    const config = configs[0];
-
-    // Ensure all default sections are present in the order (for handling new sections added later)
-    let currentOrder =
-      (config.sectionsOrder as string[]) || DEFAULT_SECTIONS_ORDER;
-    const missingSections = DEFAULT_SECTIONS_ORDER.filter(
-      (section) => !currentOrder.includes(section),
-    );
-
-    if (missingSections.length > 0) {
-      currentOrder = [...currentOrder, ...missingSections];
-    }
+    const config: any = configs[0];
 
     return {
       ...DEFAULT_CONFIG,
       ...config,
-      sectionsOrder: currentOrder,
-      flashSaleDiscount: config.flashSaleDiscount
-        ? Number(config.flashSaleDiscount)
-        : 0,
-      manualNewArrivalIds: Array.from(
-        new Set(config.manualNewArrivalIds || []),
-      ),
-      manualBestSellerIds: Array.from(
-        new Set(config.manualBestSellerIds || []),
-      ),
-      manualFlashSaleIds: Array.from(new Set(config.manualFlashSaleIds || [])),
-    } as unknown as LandingPageConfig;
+      sectionsOrder: DEFAULT_SECTIONS_ORDER,
+      flashSaleDiscount: config.flashSaleDiscount ? Number(config.flashSaleDiscount) : 15,
+      manualNewArrivalIds: [],
+      manualBestSellerIds: [],
+      manualFlashSaleIds: [],
+    } as LandingPageConfig;
   } catch (error) {
     console.error("Error fetching LandingPageConfig:", error);
-    throw error;
+    return DEFAULT_CONFIG;
   }
 }
 
 export async function updateLandingConfig(data: Partial<LandingPageConfig>) {
   try {
-    // Deduplicate IDs before saving
-    if (data.manualNewArrivalIds) {
-      data.manualNewArrivalIds = Array.from(new Set(data.manualNewArrivalIds));
-    }
-    if (data.manualBestSellerIds) {
-      data.manualBestSellerIds = Array.from(new Set(data.manualBestSellerIds));
-    }
-    if (data.manualFlashSaleIds) {
-      data.manualFlashSaleIds = Array.from(new Set(data.manualFlashSaleIds));
-    }
-
     const configs = await prisma.landingPageConfig.findMany({
       orderBy: { updatedAt: "desc" },
     });
 
-    if (configs.length > 0) {
-      const latest = configs[0];
-      await prisma.landingPageConfig.update({
-        where: { id: latest.id },
-        data: data as unknown as Prisma.LandingPageConfigUpdateInput,
-      });
+    const dbData: Record<string, any> = {};
+    if (data.heroTitleAr !== undefined) dbData.heroTitleAr = data.heroTitleAr;
+    if (data.heroTitleEn !== undefined) dbData.heroTitleEn = data.heroTitleEn;
+    if (data.heroSubtitleAr !== undefined) dbData.heroSubtitleAr = data.heroSubtitleAr;
+    if (data.heroSubtitleEn !== undefined) dbData.heroSubtitleEn = data.heroSubtitleEn;
+    if (data.heroImage !== undefined) dbData.heroImage = data.heroImage;
+    if (data.heroButtonTextAr !== undefined) dbData.heroButtonTextAr = data.heroButtonTextAr;
+    if (data.heroButtonTextEn !== undefined) dbData.heroButtonTextEn = data.heroButtonTextEn;
+    if (data.heroLink !== undefined) dbData.heroLink = data.heroLink;
+    if (data.showHero !== undefined) dbData.showHero = data.showHero;
+    if (data.showFeatures !== undefined) dbData.showFeatures = data.showFeatures;
+    if (data.showNewArrivals !== undefined) dbData.showNewArrivals = data.showNewArrivals;
+    if (data.showBestSellers !== undefined) dbData.showBestSellers = data.showBestSellers;
+    if (data.showFlashSales !== undefined) dbData.showFlashSales = data.showFlashSales;
+    if (data.showCategories !== undefined) dbData.showCategories = data.showCategories;
+    if (data.showTestimonials !== undefined) dbData.showTestimonials = data.showTestimonials;
+    if (data.flashSaleDiscount !== undefined) dbData.flashSaleDiscount = data.flashSaleDiscount;
+    if (data.flashSaleEndDate !== undefined) dbData.flashSaleEndDate = data.flashSaleEndDate;
 
-      // Cleanup extras if any
-      if (configs.length > 1) {
-        const idsToDelete = configs.slice(1).map((c) => c.id);
-        await prisma.landingPageConfig.deleteMany({
-          where: { id: { in: idsToDelete } },
-        });
-      }
+    if (configs.length > 0) {
+      await prisma.landingPageConfig.update({
+        where: { id: configs[0].id },
+        data: dbData,
+      });
     } else {
       await prisma.landingPageConfig.create({
         data: {
-          ...DEFAULT_CONFIG,
-          ...data,
-        } as unknown as Prisma.LandingPageConfigCreateInput,
+          ...DB_DEFAULT_CREATE,
+          ...dbData,
+        },
       });
     }
 
-    // Comprehensive revalidation
     revalidatePath("/", "layout");
-    revalidatePath("/(dashboard)/admin/landing", "page");
+    revalidatePath("/admin/landing", "page");
 
     return { success: true };
   } catch (error) {
-    console.error("Error updating landing config:", error);
-    throw error;
+    console.error("Error updating LandingPageConfig:", error);
+    return { success: false, error: "Failed to update configuration" };
   }
 }
-export async function uploadHeroImage(formData: FormData) {
+
+export async function uploadHeroImage(
+  formData: FormData
+): Promise<{ success: boolean; url?: string; error?: string }> {
   try {
     const file = formData.get("file") as File;
-    if (!file) return { success: false, error: "No file provided" };
+    if (!file || file.size === 0) {
+      return { success: false, error: "No file provided" };
+    }
 
-    // Get current config to delete old image if it's on Vercel
-    const config = await getLandingConfig();
-    if (config.heroImage.includes("blob.vercel-storage.com")) {
-      try {
-        await del(config.heroImage);
-      } catch (e) {
-        console.error("Failed to delete old hero image:", e);
-      }
+    if (!BLOB_TOKEN) {
+      return {
+        success: false,
+        error: "Storage not configured (missing BLOB_READ_WRITE_TOKEN)",
+      };
     }
 
     const blob = await put(`landing/hero/${file.name}`, file, {
       access: "public",
       addRandomSuffix: true,
+      token: BLOB_TOKEN,
     });
 
     return { success: true, url: blob.url };
   } catch (error) {
     console.error("Error uploading hero image:", error);
-    return { success: false, error: "Upload failed" };
+    return { success: false, error: "Failed to upload hero image" };
   }
 }

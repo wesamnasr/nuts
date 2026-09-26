@@ -58,27 +58,19 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata() {
   const settings = await getSettings();
-  const storeName = settings.storeNameEn || "New Concept";
-  const description = settings.descriptionEn || "Luxury furniture and premium interior design in Saudi Arabia.";
+  const storeName = settings.storeNameAr || "محامص ومكسرات نَتس";
+  const description = settings.metaDescription || "تسوق أجود أنواع المكسرات المحمصة والنيئة والفواكه المجففة في مصر مع توصيل سريع لجميع المحافظات والدفع بفودافون كاش وإنستاباي.";
   
   return {
-    title: `New Concept | ${storeName}`,
+    title: `${storeName} | تسوق المكسرات الفاخرة أونلاين`,
     description: description,
-    keywords: "furniture, decor, interior design, luxury, bedrooms, dining rooms, sofas, Jeddah, Saudi Arabia",
+    keywords: "مكسرات, كاجو, فستق, لوز, عين جمل, ياميش, فواكه مجففة, محامص, فودافون كاش, انستاباي, القاهرة, مصر",
     openGraph: {
-      title: `${storeName} | Luxury Furniture`,
+      title: `${storeName} | Nuts Gourmet Roastery`,
       description: description,
       url: "https://yourwebsite.com",
       siteName: storeName,
-      images: [
-        {
-          url: "https://res.cloudinary.com/dxgvn3gad/image/upload/v1771868786/furniture_store/o62wzklmikhx7evkoeyf.webp",
-          width: 1200,
-          height: 630,
-          alt: `${storeName} Showroom`,
-        },
-      ],
-      locale: "ar_SA",
+      locale: "ar_EG",
       type: "website",
     },
     alternates: {
@@ -168,26 +160,16 @@ export default async function Home() {
     if (categoriesResult.success && categoriesResult.data) categories = categoriesResult.data as Category[];
 
     if (featuredReviewsResult.success && featuredReviewsResult.data) {
-        testimonials = featuredReviewsResult.data.map((r: { 
-          id: string; 
-          customerName: string; 
-          customerRoleAr: string | null; 
-          customerRoleEn: string | null; 
-          commentAr: string | null; 
-          commentEn: string | null; 
-          comment: string | null; 
-          customerImage: string | null; 
-          rating: number 
-        }) => ({
+        testimonials = (featuredReviewsResult.data as any[]).map((r: any) => ({
             id: r.id,
             nameAr: r.customerName,
             nameEn: r.customerName,
-            roleAr: r.customerRoleAr || "",
-            roleEn: r.customerRoleEn || "",
-            textAr: r.commentAr || r.comment || "",
-            textEn: r.commentEn || r.comment || "",
-            image: r.customerImage || null,
-            rating: r.rating
+            roleAr: "عميل موثق ⭐",
+            roleEn: "Verified Customer ⭐",
+            textAr: r.commentAr || "",
+            textEn: r.commentEn || r.commentAr || "",
+            image: null,
+            rating: r.rating || 5
         }));
     }
 
@@ -195,11 +177,11 @@ export default async function Home() {
     if (activeFeaturesResult.success && activeFeaturesResult.data) storeFeatures = activeFeaturesResult.data;
 
     if (activeCollectionsResult.success && activeCollectionsResult.data) {
-        productCollections = activeCollectionsResult.data.map((collection) => ({
+        productCollections = activeCollectionsResult.data.map((collection: any) => ({
             id: collection.id,
             titleAr: collection.titleAr,
             titleEn: collection.titleEn,
-            products: collection.items.map((item) => item.product)
+            products: collection.items.map((item: any) => item.product)
         }));
     }
 
@@ -209,18 +191,18 @@ export default async function Home() {
 
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "FurnitureStore",
-    "name": pageSettings?.storeNameEn || "New Concept",
-    "image": "https://res.cloudinary.com/dxgvn3gad/image/upload/v1771868786/furniture_store/o62wzklmikhx7evkoeyf.webp",
-    "description": pageSettings?.descriptionEn || "Luxury furniture store in Saudi Arabia.",
+    "@type": "Store",
+    "name": pageSettings?.storeNameAr || "محامص ومكسرات نَتس",
+    "image": "https://images.unsplash.com/photo-1599599810769-bcde5a160d32?q=80&w=1000&auto=format&fit=crop",
+    "description": pageSettings?.descriptionAr || "أفضل متجر مكسرات فاخرة ومحمصة طازجة في مصر، مع شحن سريع لجميع المحافظات.",
     "address": {
       "@type": "PostalAddress",
-      "addressLocality": "Jeddah",
-      "addressCountry": "SA",
-      "streetAddress": pageSettings?.storeAddressEn || ""
+      "addressLocality": "Cairo",
+      "addressCountry": "EG",
+      "streetAddress": pageSettings?.storeAddressAr || "القاهرة، مصر"
     },
-    "telephone": pageSettings?.storePhone || "+966570581224",
-    "priceRange": "$$$"
+    "telephone": pageSettings?.storePhone || "+201000000000",
+    "priceRange": "$$"
   };
 
   return (

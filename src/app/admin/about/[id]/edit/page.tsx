@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/db";
+import { getAboutSections } from "@/actions/about";
 import { AboutSectionForm } from "@/components/admin/AboutSectionForm";
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
@@ -13,9 +13,8 @@ interface EditAboutSectionPageProps {
 
 export default async function EditAboutSectionPage({ params }: EditAboutSectionPageProps) {
   const { id } = await params;
-  const section = await prisma.aboutSection.findUnique({
-    where: { id },
-  });
+  const { data: sections } = await getAboutSections();
+  const section = sections?.find((s) => s.id === id);
 
   if (!section) {
     notFound();

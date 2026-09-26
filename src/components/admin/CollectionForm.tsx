@@ -60,7 +60,7 @@ export function CollectionForm({ collectionId, onSuccess, onCancel }: Collection
             reset({
               titleAr: res.data.titleAr,
               titleEn: res.data.titleEn,
-              productIds: res.data.items.map((item) => item.productId),
+              productIds: res.data.items.map((item: any) => item.productId),
             });
           } else {
             toast.error("Failed to load collection details");

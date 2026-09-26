@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PortfolioMediaUpload } from "@/components/admin/PortfolioMediaUpload";
-import { MediaType } from "@prisma/client";
+import { MediaType } from "@/actions/portfolio";
 import {
   Loader2,
   CheckCircle2,
